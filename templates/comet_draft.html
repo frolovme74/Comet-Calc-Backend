@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    {{template "head" .}}
+    <title>Добавление кометы</title>
+</head>
+<body>
+<div class="app">
+    <main class="page">
+        {{with .Comet}}
+        <form class="form">
+            <section class="card">
+                <label class="upload">
+                    <video class="upload__preview" src="{{minio .CometVideo}}" poster="{{minio .CometPhoto}}"
+                           muted loop playsinline autoplay></video>
+                    <span class="upload__text">
+                        <span class="field__label">Видео</span>
+                        <span class="button button--secondary">Выбрать файл</span>
+                    </span>
+                    <input class="upload__input" type="file" name="comet_video" accept="video/*">
+                </label>
+                <label class="upload">
+                    <img class="upload__preview upload__preview--image" src="{{minio .CometPhoto}}" alt="{{.CometName}}">
+                    <span class="upload__text">
+                        <span class="field__label">Фото</span>
+                        <span class="button button--secondary">Выбрать файл</span>
+                    </span>
+                    <input class="upload__input" type="file" name="comet_photo" accept="image/*">
+                </label>
+            </section>
+
+            <section class="card">
+                <label class="field">
+                    <span class="field__label">Название</span>
+                    <input class="field__input" type="text" name="comet_name" value="{{.CometName}}">
+                </label>
+                <label class="field">
+                    <span class="field__label">Описание</span>
+                    <textarea class="field__input field__input--area" name="comet_description" rows="4">{{.CometDescription}}</textarea>
+                </label>
+            </section>
+
+            <section class="card">
+                <label class="field">
+                    <span class="field__label">Период обращения, лет</span>
+                    <input class="field__input" type="number" name="orbital_period" step="0.01" min="0" value="{{inputNum .OrbitalPeriod}}">
+                </label>
+                <label class="field">
+                    <span class="field__label">Эксцентриситет орбиты</span>
+                    <input class="field__input" type="number" name="orbit_eccentricity" step="0.001" min="0" max="0.999" value="{{inputNum .OrbitEccentricity}}">
+                </label>
+            </section>
+
+            <button class="button button--wide" type="button">Опубликовать</button>
+        </form>
+        {{end}}
+    </main>
+
+    {{template "tabbar" .}}
+</div>
+</body>
+</html>

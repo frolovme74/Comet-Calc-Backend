@@ -1,0 +1,22 @@
+{{define "head"}}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="/static/css/style.css">
+{{end}}
+
+{{define "tabbar"}}
+<nav class="tabbar">
+    <a class="tabbar__item {{if eq .Tab "feed"}}tabbar__item--active{{end}}" href="/comets/feed/">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        <span>Лента</span>
+    </a>
+    <a class="tabbar__item {{if eq .Tab "add"}}tabbar__item--active{{end}}" href="/comets/draft">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
+        <span>Добавление</span>
+    </a>
+    <a class="tabbar__item {{if eq .Tab "tiles"}}tabbar__item--active{{end}}" href="/comets">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zm9 0h7v7h-7zM4 13h7v7H4zm9 0h7v7h-7z"/></svg>
+        <span>Плитка</span>
+    </a>
+</nav>
+{{end}}

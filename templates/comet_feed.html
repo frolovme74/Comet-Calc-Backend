@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    {{template "head" .}}
+    <title>{{.Comet.CometName}} — Лента</title>
+</head>
+<body>
+<div class="app">
+    {{with .Comet}}
+    <main class="feed">
+        <video class="feed__video" src="{{minio .CometVideo}}" poster="{{minio .CometPhoto}}"
+               autoplay muted loop playsinline></video>
+        <div class="feed__shade"></div>
+
+        <aside class="feed__side">
+            <div class="feed__stat">
+                <span class="feed__stat-label">Период</span>
+                <span class="feed__stat-value">{{num .OrbitalPeriod}}</span>
+                <span class="feed__stat-unit">{{years .OrbitalPeriod}}</span>
+            </div>
+            <div class="feed__stat">
+                <span class="feed__stat-label">Эксцентриситет</span>
+                <span class="feed__stat-value">{{num .OrbitEccentricity}}</span>
+            </div>
+            <div class="feed__like">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54z"/></svg>
+                <span>{{$.Comet.LikesCount}}</span>
+            </div>
+            <a class="feed__next" href="/comets/feed/{{.ID}}?next=true" title="Следующая комета">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg>
+            </a>
+        </aside>
+
+        <section class="feed__info">
+            <div class="feed__head">
+                <img class="feed__thumb" src="{{minio .CometPhoto}}" alt="">
+                <h1 class="feed__title">{{.CometName}}</h1>
+            </div>
+            <input class="feed__toggle" type="checkbox" id="more">
+            <p class="feed__desc">{{.CometDescription}}</p>
+            <label class="feed__more" for="more"></label>
+        </section>
+    </main>
+    {{end}}
+
+    {{template "tabbar" .}}
+</div>
+</body>
+</html>

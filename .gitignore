@@ -1,0 +1,7 @@
+/app
+*.exe
+.idea/
+.vscode/
+
+media/*
+!media/.gitkeep

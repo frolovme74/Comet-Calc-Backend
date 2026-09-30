@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    {{template "head" .}}
+    <title>Кометы — плитка</title>
+</head>
+<body>
+<div class="app">
+    <main class="page">
+        <header class="page__header">
+            <h1 class="page__title">Кометы</h1>
+        </header>
+
+        <form class="filter" method="get" action="/comets">
+            <div class="filter__row">
+                <span class="filter__label">Период обращения, лет</span>
+                <span class="filter__value">
+                    {{- if and .HasPeriodFrom .HasPeriodTo}}{{num .PeriodFrom}} – {{num .PeriodTo}}
+                    {{- else if .HasPeriodFrom}}от {{num .PeriodFrom}}
+                    {{- else if .HasPeriodTo}}до {{num .PeriodTo}}
+                    {{- else}}все{{end -}}
+                </span>
+            </div>
+            <div class="range range--from" style="--min: {{.PeriodMin}}; --max: {{.PeriodMax}}; --val: {{inputNum .SliderFrom}}">
+                <div class="range__head">
+                    <label class="range__label" for="min_orbital_period">от</label>
+                    <output class="range__value" for="min_orbital_period"><span class="range__static">{{num .SliderFrom}}</span></output>
+                </div>
+                <input class="range__input" id="min_orbital_period" type="range" name="min_orbital_period"
+                       min="{{.PeriodMin}}" max="{{.PeriodMax}}" step="1" value="{{inputNum .SliderFrom}}">
+            </div>
+            <div class="range range--to" style="--min: {{.PeriodMin}}; --max: {{.PeriodMax}}; --val: {{inputNum .SliderTo}}">
+                <div class="range__head">
+                    <label class="range__label" for="max_orbital_period">до</label>
+                    <output class="range__value" for="max_orbital_period"><span class="range__static">{{num .SliderTo}}</span></output>
+                </div>
+                <input class="range__input" id="max_orbital_period" type="range" name="max_orbital_period"
+                       min="{{.PeriodMin}}" max="{{.PeriodMax}}" step="1" value="{{inputNum .SliderTo}}">
+            </div>
+            <div class="range__scale"><span>{{.PeriodMin}}</span><span>35</span><span>70</span><span>105</span><span>{{.PeriodMax}}</span></div>
+            <div class="filter__actions">
+                <button class="button" type="submit">Показать</button>
+                {{if or .HasPeriodFrom .HasPeriodTo}}<a class="button button--secondary" href="/comets">Сбросить</a>{{end}}
+            </div>
+        </form>
+
+        {{if .Comets}}
+        <div class="tiles">
+            {{range .Comets}}
+            <a class="tile" href="/comets/feed/{{.ID}}">
+                <img class="tile__image" src="{{minio .CometPhoto}}" alt="{{.CometName}}" loading="lazy">
+                <div class="tile__body">
+                    <h2 class="tile__title">{{.CometName}}</h2>
+                    <div class="tile__meta">
+                        <span class="tile__value">{{num .OrbitalPeriod}} {{years .OrbitalPeriod}}</span>
+                        <span class="tile__likes">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54z"/></svg>
+                            {{.LikesCount}}
+                        </span>
+                    </div>
+                </div>
+            </a>
+            {{end}}
+        </div>
+        {{else}}
+        <p class="empty">Нет комет с таким периодом</p>
+        {{end}}
+    </main>
+
+    {{template "tabbar" .}}
+</div>
+</body>
+</html>

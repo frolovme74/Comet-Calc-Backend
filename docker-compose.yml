@@ -1,0 +1,32 @@
+# minio/minio и minio/mc удалены с Docker Hub — используется форк pgsty (https://github.com/pgsty/minio)
+services:
+  minio:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    container_name: comets-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+
+  minio-init:
+    image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z
+    depends_on:
+      - minio
+    volumes:
+      - ./media:/media
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 2; done;
+      mc mb --ignore-existing local/comets;
+      mc anonymous set download local/comets;
+      mc cp --recursive /media/ local/comets/;
+      echo 'Minio готов: http://localhost:9000/comets/';
+      "
+
+volumes:
+  minio-data:
