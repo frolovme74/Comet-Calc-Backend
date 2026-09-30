@@ -1,98 +1,110 @@
-# Comet-Calc-Backend — расстояние кометы от Солнца (ЛР1)
+# Comet-Calc-Backend — расстояние кометы от Солнца (ЛР2)
 
 Тема: расстояние кометы от Солнца по её координатам на небесной сфере.
-Услуга — **комета**, заявка — **расчёт** расстояния (появится со следующих ЛР).
+Услуга — **комета**, заявка — **расчёт** расстояния (появится в следующих ЛР).
 
 Поля услуги по теме: период обращения P (лет) и эксцентриситет орбиты e. Фильтрация — по периоду (от и до).
 
-В ЛР1 по заданию только просмотр и поиск: 3 GET-запроса, одна коллекция без БД, без JavaScript.
-Заявки и расчёта в ЛР1 нет.
+ЛР2: данные хранятся в PostgreSQL, три страницы из ЛР1 работают с БД. Получение, поиск, создание и публикация
+услуг — через ORM (gORM), логическое удаление — SQL-запросом `UPDATE` без ORM. Текущий пользователь
+зафиксирован константой `CurrentUserID = 1` (авторизация — в ЛР4). Лайки только отображаются.
 
-Бэкенд: Go 1.22+ (стандартная библиотека `net/http` + `html/template`, внешних зависимостей нет).
+Бэкенд: Go 1.25, `net/http` + `html/template`, gORM + PostgreSQL, godotenv; Minio для фото и видео.
 
-## Структура (MVC)
+## Структура
 
 ```
-cmd/main.go                    роутинг: 3 GET-запроса + статика, функция шаблона minio
-internal/models/comet.go       Model — коллекция услуг models.Comets (без БД)
-internal/handlers/handlers.go  Controller — 3 обработчика CometFeed / CometDraft / CometList
-templates/comet_feed.html      View — лента
-templates/comet_draft.html     View — добавление (черновик)
-templates/comet_list.html      View — плитка
-templates/partials.html        общий <head> и панель вкладок
-static/css/style.css           стили (скопированы с TheSkyLive, список в шапке файла)
-docker-compose.yml             Minio + создание бакета comets
-media/                         сюда положить изображения и видео перед запуском Minio
+cmd/comets/main.go                 сервер: роутинг 6 HTTP-методов, статика, функции шаблонов
+cmd/migrate/main.go                миграции: создание таблиц по моделям (gORM AutoMigrate)
+internal/models/                   модели = таблицы: User, Comet, CometLike
+internal/repository/               работа с БД: запросы через gORM, удаление через SQL UPDATE
+internal/handlers/handlers.go      контроллеры
+internal/media/media.go            фото и видео по умолчанию, проверка доступности файлов в Minio
+internal/dsn/dsn.go                строка подключения к PostgreSQL из переменных окружения
+templates/                         comet_feed.html, comet_draft.html, comet_list.html, error.html, partials.html
+static/css/style.css               стили (скопированы с TheSkyLive)
+static/media/                      фото и видео по умолчанию
+db/seed.sql                        начальные данные для Adminer
+docker-compose.yml                 Minio, PostgreSQL, Adminer
+.env.example                       параметры подключения к БД (скопировать в .env)
 ```
+
+## База данных
+
+Каскадное удаление не используется: все внешние ключи `ON DELETE RESTRICT`.
+
+**users** — пользователи
+
+| Столбец | Тип | |
+|---|---|---|
+| id | bigint | первичный ключ |
+| login | varchar(50) | уникальный |
+| full_name | varchar(100) | |
+
+**comets** — услуги (кометы)
+
+| Столбец | Тип | |
+|---|---|---|
+| id | bigint | первичный ключ |
+| comet_name | varchar(100) | наименование |
+| comet_description | varchar(500) | краткое описание |
+| comet_status | varchar(20) | `draft` / `published` / `deleted` (CHECK) |
+| comet_photo | varchar(255) | url изображения в Minio |
+| comet_video | varchar(255) | url видео в Minio |
+| orbital_period | numeric(8,2) | период обращения, лет (> 0) |
+| orbit_eccentricity | numeric(4,3) | эксцентриситет (0 ≤ e < 1) |
+| created_at | timestamp | дата создания |
+| creator_id | bigint | создатель → users.id |
+| formed_at | timestamp | дата формирования (публикации) |
+
+Уникальный частичный индекс `idx_comets_one_draft_per_creator (creator_id) WHERE comet_status = 'draft'` —
+у каждого пользователя не более одного черновика.
+
+**comet_likes** — лайки, м-м пользователь–комета
+
+| Столбец | Тип | |
+|---|---|---|
+| user_id | bigint | первичный ключ (составной) → users.id |
+| comet_id | bigint | первичный ключ (составной) → comets.id |
 
 ## Запуск
 
-1. Положите в `media/` файлы с ключами из коллекции (латиница):
+1. Параметры БД: `cp .env.example .env` (PostgreSQL на порту 5433, чтобы не конфликтовать с другими базами).
+2. Файлы фото и видео — в `media/` (список и источники — в разделе «Медиа: источники»).
+3. Контейнеры: `docker compose up -d` — Minio (http://localhost:9001, `minioadmin`), PostgreSQL (localhost:5433),
+   Adminer (http://localhost:8082: система PostgreSQL, сервер `postgres`, пользователь/пароль/база из `.env`).
+   Контейнер `minio-init` создаёт бакет `comets`, открывает его на чтение и загружает файлы из `media/`.
+4. Таблицы: `go run ./cmd/migrate`.
+5. Данные: в Adminer → «SQL-запрос» → содержимое `db/seed.sql` → «Выполнить»
+   (8 пользователей, 10 комет: 8 опубликованных, 1 черновик, 1 удалённая, 31 лайк).
+6. Сервер: `go run ./cmd/comets` → http://localhost:8080/comets
+   С выводом SQL-запросов в консоль (видно `LIMIT 1` ленты и `WHERE` фильтра): `DB_LOG=1 go run ./cmd/comets`.
 
-   | Комета | Изображение | Видео |
-   |---|---|---|
-   | 1P/Галлея | halley.jpg | halley.mp4 |
-   | 2P/Энке | encke.jpg | encke.mp4 |
-   | 67P/Чурюмова — Герасименко | churyumov.jpg | churyumov.mp4 |
-   | 12P/Понса — Брукса | pons_brooks.jpg | pons_brooks.mp4 |
-   | 109P/Свифта — Туттля | swift_tuttle.jpg | swift_tuttle.mp4 |
-   | 9P/Темпеля | tempel1.jpg | tempel1.mp4 |
-   | 55P/Темпеля — Туттля | tempel_tuttle.jpg | tempel_tuttle.mp4 |
-   | 103P/Хартли | hartley2.jpg | hartley2.mp4 |
-   | 81P/Вильда — черновик | wild2.jpg | wild2.mp4 |
-   | 46P/Виртанена — удалена | wirtanen.jpg | wirtanen.mp4 |
+Образы `minio/minio` и `minio/mc` удалены с Docker Hub, поэтому используется форк `pgsty/minio` + `pgsty/mc`.
 
-   Источники и подписи — в разделе «Медиа: источники» ниже.
+## HTTP-методы
 
-2. Minio: `docker compose up -d` (консоль http://localhost:9001, логин/пароль `minioadmin`).
-   Контейнер `minio-init` создаст бакет `comets`, откроет его на чтение и загрузит файлы из `media/`.
-   После изменения файлов в `media/`: `docker compose up --force-recreate minio-init`.
+| Метод и URL | Контроллер | Работа с БД | Что делает |
+|---|---|---|---|
+| `GET /comets/feed/`, `/comets/feed/{id}`, `?next=true` | `CometFeed` | gORM, `LIMIT 1` | лента: первая / по id / следующая опубликованная комета |
+| `GET /comets/draft` | `CometDraft` | gORM | «Добавление»: нет черновика — форма создания, есть — форма публикации |
+| `GET /comets?min_orbital_period=&max_orbital_period=` | `CometList` | gORM, `WHERE` в SQL | плитка опубликованных с фильтром по периоду |
+| `POST /comets/draft` | `CreateCometDraft` | gORM `Create` | кнопка «Далее»: создать черновик по названию |
+| `POST /comets/draft/publish` | `PublishCometDraft` | gORM `Updates` | кнопка «Опубликовать»: описание, период, эксцентриситет, статус, дата формирования |
+| `POST /comets/{id}/delete` | `DeleteComet` | SQL `UPDATE` без ORM | кнопка удаления на плитке: статус `deleted` |
 
-   Образы `minio/minio` и `minio/mc` из методички с конца 2025 года удалены с Docker Hub, поэтому
-   используется поддерживаемый сообществом форк `pgsty/minio` + `pgsty/mc` (тот же MinIO, те же команды).
-   Настройка вручную, как в методичке (клиент `mc` встроен в контейнер):
-
-   ```
-   docker exec -it comets-minio mc alias set local http://localhost:9000 minioadmin minioadmin
-   docker exec -it comets-minio mc mb local/comets
-   docker exec -it comets-minio mc anonymous set download local/comets
-   ```
-
-   Файлы загрузить через консоль http://localhost:9001 → бакет `comets` → Upload.
-
-3. Сервер: `go run ./cmd` → http://localhost:8080/comets
-   Другой адрес Minio: `MINIO_URL=http://localhost:9000/comets go run ./cmd`
-
-## Три GET-запроса
-
-| URL | Контроллер | Что делает |
-|---|---|---|
-| `/comets/feed/` , `/comets/feed/{id}` , `/comets/feed/{id}?next=true` | `CometFeed` | лента: первая комета (из панели вкладок, без ID), комета по ID, следующая после ID |
-| `/comets/draft` | `CometDraft` | страница «Добавление» с единственной услугой-черновиком |
-| `/comets?min_orbital_period=5&max_orbital_period=40` | `CometList` | плитка всех опубликованных, фильтр на сервере: min_orbital_period ≤ P ≤ max_orbital_period |
-
-Поля кометы: `CometName`, `CometDescription`, `CometPhoto`, `CometVideo`, `CometStatus`, `Likes`;
-поля по теме — период обращения `OrbitalPeriod` (лет) и эксцентриситет `OrbitEccentricity` (0 ≤ e < 1).
-
-Фильтрация: два слайдера `input type="range"` «от» и «до» (0–140 лет, шаг 1) с кнопкой «Показать».
-Число над ползунком обновляется при перетаскивании без JavaScript — через CSS scroll-driven animations
-(`view-timeline` на ползунке, `@property --val`, вывод через `counter()`); в браузерах без их поддержки
-показывается значение, пришедшее с сервера. Форма отправляет `GET /comets?min_orbital_period=A&max_orbital_period=B`.
-`CometList` переводит каждую границу в float, проходит по `models.PublishedComets()` и отбрасывает кометы
-с `OrbitalPeriod < min_orbital_period` или `OrbitalPeriod > max_orbital_period`. Крайние значения (0 и 140),
-пустые и некорректные — граница не применяется, без обеих показываются все. Если «от» больше «до»,
-границы меняются местами. Значения возвращаются в шаблон (`SliderFrom`, `SliderTo`) и подставляются
-в `value` слайдеров, поэтому фильтр сохраняется.
-Лайки считаются в контроллере: `LikesCount = len(c.Likes)`.
-
-Статусы: `draft` (только «Добавление»), `published` (лента и плитка), `deleted` (нигде не показывается,
-например `/comets/feed/10` → 404).
-
-## Minio в коде
-
-- В коллекции: поля `CometPhoto` и `CometVideo` каждой кометы (`internal/models/comet.go`).
-- URL собирает функция шаблона `minio` (`cmd/main.go`): `minio "halley.jpg"` → `http://localhost:9000/comets/halley.jpg`.
-- Использование: `comet_feed.html` (video src, poster, миниатюра), `comet_draft.html` (превью фото и видео), `comet_list.html` (фото карточки).
+- Лента: БД возвращает ровно одну строку (`LIMIT 1`); следующая — `id > ? ORDER BY id LIMIT 1`, после последней — первая.
+- Фильтр: `WHERE orbital_period >= ? AND orbital_period <= ?` выполняется в БД. Слайдеры «от» и «до» — `input type="range"`,
+  число над ползунком обновляется без JavaScript (CSS scroll-driven animations). Крайние значения 0 и 140 — без границы.
+- Лайки: `(SELECT COUNT(*) FROM comet_likes WHERE comet_id = comets.id)` в том же запросе.
+- Удаление: `UPDATE comets SET comet_status = 'deleted' WHERE id = $1 AND comet_status = 'published'` через `database/sql`.
+  Удалённые кометы нигде не показываются: `/comets/feed/{id}` удалённой → 404.
+- Создание: файлы фото и видео в ЛР2 на сервер не передаются (у полей выбора файла нет `name`), в БД url пустые.
+- Фото и видео по умолчанию (`static/media/default_comet.jpg`, `default_comet.mp4`) подставляются, если url в БД пустой
+  или файл в Minio недоступен (HEAD-запрос, результат кешируется на 30 с). У видео вторым `<source>` всегда указан ролик по умолчанию.
+- Проверка ввода: название до 100 символов; при публикации — описание до 500 символов, период > 0 (до 999 999,99),
+  эксцентриситет от 0 до 0,999 (значения округляются до точности столбцов). Ошибки показываются на странице по-русски.
+- Ошибки 404 и 405 (несуществующий адрес, удалённая комета, неверный метод) — страница на русском `error.html`.
 
 ## Дизайн — источник
 

@@ -47,19 +47,28 @@
         {{if .Comets}}
         <div class="tiles">
             {{range .Comets}}
-            <a class="tile" href="/comets/feed/{{.ID}}">
-                <img class="tile__image" src="{{minio .CometPhoto}}" alt="{{.CometName}}" loading="lazy">
-                <div class="tile__body">
-                    <h2 class="tile__title">{{.CometName}}</h2>
-                    <div class="tile__meta">
-                        <span class="tile__value">{{num .OrbitalPeriod}} {{years .OrbitalPeriod}}</span>
-                        <span class="tile__likes">
-                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54z"/></svg>
-                            {{.LikesCount}}
-                        </span>
+            <article class="tile">
+                <a class="tile__link" href="/comets/feed/{{.ID}}">
+                    <img class="tile__image" src="{{photo .CometPhoto}}" alt="{{.CometName}}" loading="lazy">
+                    <div class="tile__body">
+                        <h2 class="tile__title">{{.CometName}}</h2>
+                        <div class="tile__meta">
+                            <span class="tile__value">{{num .OrbitalPeriod}} {{years .OrbitalPeriod}}</span>
+                            <span class="tile__likes">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54z"/></svg>
+                                {{.LikesCount}}
+                            </span>
+                        </div>
                     </div>
-                </div>
-            </a>
+                </a>
+                <form class="tile__delete" method="post" action="/comets/{{.ID}}/delete">
+                    {{if $.HasPeriodFrom}}<input type="hidden" name="min_orbital_period" value="{{inputNum $.PeriodFrom}}">{{end}}
+                    {{if $.HasPeriodTo}}<input type="hidden" name="max_orbital_period" value="{{inputNum $.PeriodTo}}">{{end}}
+                    <button class="tile__delete-button" type="submit" title="Удалить комету">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4zm-3 6h12l-1 12H7zm4 2v8h2v-8zm4 0v8h2v-8z"/></svg>
+                    </button>
+                </form>
+            </article>
             {{end}}
         </div>
         {{else}}

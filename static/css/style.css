@@ -490,14 +490,45 @@ a:hover { color: var(--color-hover); }
 }
 
 .tile {
+    position: relative;
     display: flex;
-    flex-direction: column;
-    padding: 10px;
     border: 1px solid var(--color-card);
     border-radius: var(--radius);
     background: var(--color-card);
+}
+
+.tile__link {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    padding: 10px;
     color: var(--color-text);
 }
+
+.tile__link:hover { color: var(--color-text); }
+
+.tile__delete {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    margin: 0;
+}
+
+.tile__delete-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, .65);
+    cursor: pointer;
+}
+
+.tile__delete-button svg { width: 18px; height: 18px; fill: var(--color-button-text); }
+.tile__delete-button:hover { background: var(--color-button-hover); }
 
 .tile__image {
     width: 100%;
@@ -562,3 +593,18 @@ a:hover { color: var(--color-hover); }
     background: var(--color-card);
     text-align: center;
 }
+
+.form-errors {
+    padding: 10px 12px;
+    margin-bottom: 14px;
+    border: 1px solid #C00000;
+    border-radius: var(--radius);
+    background: rgba(192, 0, 0, .15);
+    color: #FFFFFF;
+    font-size: 14px;
+}
+
+.form-errors p { margin: 0; }
+.form-errors p + p { margin-top: 4px; }
+
+.field__input[readonly] { color: var(--color-text); }

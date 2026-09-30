@@ -8,8 +8,10 @@
 <div class="app">
     {{with .Comet}}
     <main class="feed">
-        <video class="feed__video" src="{{minio .CometVideo}}" poster="{{minio .CometPhoto}}"
-               autoplay muted loop playsinline></video>
+        <video class="feed__video" poster="{{photo .CometPhoto}}" autoplay muted loop playsinline>
+            <source src="{{video .CometVideo}}" type="video/mp4">
+            <source src="{{defaultVideo}}" type="video/mp4">
+        </video>
         <div class="feed__shade"></div>
 
         <aside class="feed__side">
@@ -33,7 +35,7 @@
 
         <section class="feed__info">
             <div class="feed__head">
-                <img class="feed__thumb" src="{{minio .CometPhoto}}" alt="">
+                <img class="feed__thumb" src="{{photo .CometPhoto}}" alt="">
                 <h1 class="feed__title">{{.CometName}}</h1>
             </div>
             <input class="feed__toggle" type="checkbox" id="more">

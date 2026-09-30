@@ -7,51 +7,90 @@
 <body>
 <div class="app">
     <main class="page">
+        {{if .Form.Errors}}
+        <div class="form-errors">
+            {{range .Form.Errors}}<p>{{.}}</p>{{end}}
+        </div>
+        {{end}}
+
         {{with .Comet}}
-        <form class="form">
+        <form class="form" method="post" action="/comets/draft/publish">
             <section class="card">
-                <label class="upload">
-                    <video class="upload__preview" src="{{minio .CometVideo}}" poster="{{minio .CometPhoto}}"
-                           muted loop playsinline autoplay></video>
+                <div class="upload">
+                    <video class="upload__preview" poster="{{photo .CometPhoto}}" muted loop playsinline autoplay>
+                        <source src="{{video .CometVideo}}" type="video/mp4">
+                        <source src="{{defaultVideo}}" type="video/mp4">
+                    </video>
                     <span class="upload__text">
                         <span class="field__label">Видео</span>
-                        <span class="button button--secondary">Выбрать файл</span>
                     </span>
-                    <input class="upload__input" type="file" name="comet_video" accept="video/*">
-                </label>
-                <label class="upload">
-                    <img class="upload__preview upload__preview--image" src="{{minio .CometPhoto}}" alt="{{.CometName}}">
+                </div>
+                <div class="upload">
+                    <img class="upload__preview upload__preview--image" src="{{photo .CometPhoto}}" alt="{{.CometName}}">
                     <span class="upload__text">
                         <span class="field__label">Фото</span>
-                        <span class="button button--secondary">Выбрать файл</span>
                     </span>
-                    <input class="upload__input" type="file" name="comet_photo" accept="image/*">
-                </label>
+                </div>
             </section>
 
             <section class="card">
                 <label class="field">
                     <span class="field__label">Название</span>
-                    <input class="field__input" type="text" name="comet_name" value="{{.CometName}}">
+                    <input class="field__input" type="text" value="{{.CometName}}" readonly>
                 </label>
                 <label class="field">
-                    <span class="field__label">Описание</span>
-                    <textarea class="field__input field__input--area" name="comet_description" rows="4">{{.CometDescription}}</textarea>
+                    <span class="field__label">Краткое описание</span>
+                    <textarea class="field__input field__input--area" name="comet_description" rows="4" maxlength="500" required>{{if $.Form.Errors}}{{$.Form.CometDescription}}{{else}}{{.CometDescription}}{{end}}</textarea>
                 </label>
             </section>
 
             <section class="card">
                 <label class="field">
                     <span class="field__label">Период обращения, лет</span>
-                    <input class="field__input" type="number" name="orbital_period" step="0.01" min="0" value="{{inputNum .OrbitalPeriod}}">
+                    <input class="field__input" type="text" inputmode="decimal" name="orbital_period" required
+                           value="{{if $.Form.Errors}}{{$.Form.OrbitalPeriod}}{{else}}{{num .OrbitalPeriod}}{{end}}">
                 </label>
                 <label class="field">
                     <span class="field__label">Эксцентриситет орбиты</span>
-                    <input class="field__input" type="number" name="orbit_eccentricity" step="0.001" min="0" max="0.999" value="{{inputNum .OrbitEccentricity}}">
+                    <input class="field__input" type="text" inputmode="decimal" name="orbit_eccentricity" required
+                           value="{{if $.Form.Errors}}{{$.Form.OrbitEccentricity}}{{else}}{{num .OrbitEccentricity}}{{end}}">
                 </label>
             </section>
 
-            <button class="button button--wide" type="button">Опубликовать</button>
+            <button class="button button--wide" type="submit">Опубликовать</button>
+        </form>
+        {{else}}
+        <form class="form" method="post" action="/comets/draft">
+            <section class="card">
+                <label class="upload">
+                    <video class="upload__preview" poster="{{defaultPhoto}}" muted loop playsinline autoplay>
+                        <source src="{{defaultVideo}}" type="video/mp4">
+                    </video>
+                    <span class="upload__text">
+                        <span class="field__label">Видео</span>
+                        <span class="button button--secondary">Выбрать файл</span>
+                    </span>
+                    <input class="upload__input" type="file" accept="video/*" required>
+                </label>
+                <label class="upload">
+                    <img class="upload__preview upload__preview--image" src="{{defaultPhoto}}" alt="Фото по умолчанию">
+                    <span class="upload__text">
+                        <span class="field__label">Фото</span>
+                        <span class="button button--secondary">Выбрать файл</span>
+                    </span>
+                    <input class="upload__input" type="file" accept="image/*" required>
+                </label>
+            </section>
+
+            <section class="card">
+                <label class="field">
+                    <span class="field__label">Название</span>
+                    <input class="field__input" type="text" name="comet_name" maxlength="100" required
+                           placeholder="Например, 13P/Ольберса" value="{{.Form.CometName}}">
+                </label>
+            </section>
+
+            <button class="button button--wide" type="submit">Далее</button>
         </form>
         {{end}}
     </main>
