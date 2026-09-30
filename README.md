@@ -1,33 +1,47 @@
-# Comet-Calc-Backend — расстояние кометы от Солнца (ЛР2)
+# Comet-Calc-Backend — расстояние кометы от Солнца (ЛР3)
 
 Тема: расстояние кометы от Солнца по её координатам на небесной сфере.
-Услуга — **комета**, заявка — **расчёт** расстояния (появится в следующих ЛР).
+Услуга — **комета**, заявка — **расчёт** расстояния.
 
 Поля услуги по теме: период обращения P (лет) и эксцентриситет орбиты e. Фильтрация — по периоду (от и до).
 
-ЛР2: данные хранятся в PostgreSQL, три страницы из ЛР1 работают с БД. Получение, поиск, создание и публикация
-услуг — через ORM (gORM), логическое удаление — SQL-запросом `UPDATE` без ORM. Текущий пользователь
-зафиксирован константой `CurrentUserID = 1` (авторизация — в ЛР4). Лайки только отображаются.
+ЛР3: веб-сервис (REST API, JSON) со всей бизнес-логикой, кроме авторизации. Все методы начинаются с `/api`.
+Работа с БД — через ORM (gORM), фото и видео загружаются файлами в Minio, в БД сохраняются имена файлов.
+Текущий пользователь зафиксирован константой через функцию-singleton `session.CurrentUser()` (id = 1).
+Страницы из ЛР1–ЛР2 (`/comets`, `/comets/feed`, `/comets/draft`) продолжают работать.
 
-Бэкенд: Go 1.25, `net/http` + `html/template`, gORM + PostgreSQL, godotenv; Minio для фото и видео.
+Бэкенд: Go 1.25, `net/http`, gORM + PostgreSQL, minio-go, bcrypt, godotenv.
 
 ## Структура
 
 ```
-cmd/comets/main.go                 сервер: роутинг 6 HTTP-методов, статика, функции шаблонов
-cmd/migrate/main.go                миграции: создание таблиц по моделям (gORM AutoMigrate)
-internal/models/                   модели = таблицы: User, Comet, CometLike
-internal/repository/               работа с БД: запросы через gORM, удаление через SQL UPDATE
-internal/handlers/handlers.go      контроллеры
-internal/media/media.go            фото и видео по умолчанию, проверка доступности файлов в Minio
-internal/dsn/dsn.go                строка подключения к PostgreSQL из переменных окружения
-templates/                         comet_feed.html, comet_draft.html, comet_list.html, error.html, partials.html
-static/css/style.css               стили (скопированы с TheSkyLive)
-static/media/                      фото и видео по умолчанию
-db/seed.sql                        начальные данные для Adminer
-docker-compose.yml                 Minio, PostgreSQL, Adminer
-.env.example                       параметры подключения к БД (скопировать в .env)
+cmd/comets/main.go                   сервер: страницы (SSR) и API, статика
+cmd/migrate/main.go                  миграции: создание таблиц по моделям (gORM AutoMigrate)
+internal/models/                     модели = таблицы: User, Comet, CometLike
+internal/api/                        веб-сервис: api.go (роутинг /api, ошибки), comets.go, users.go,
+                                     serializers.go (сериализаторы: структуры запросов и ответов JSON)
+internal/repository/                 работа с БД через gORM (удаление на странице ЛР2 — SQL UPDATE)
+internal/session/session.go          функция-singleton CurrentUser(): текущий пользователь (константа id = 1)
+internal/storage/storage.go          Minio: загрузка и удаление файлов, генерация имён, url файла
+internal/handlers/handlers.go        страницы (SSR) из ЛР1–ЛР2
+internal/media/media.go              фото и видео по умолчанию для страниц
+templates/, static/                  шаблоны и стили страниц
+db/seed.sql                          начальные данные (Adminer → «SQL-запрос»)
+docs/comets.mdj                      диаграммы StarUML
+docs/comets.postman_collection.json  коллекция из 10 запросов для Postman / Insomnia
 ```
+
+## Запуск
+
+1. `cp .env.example .env` — параметры PostgreSQL (порт 5433) и Minio.
+2. `docker compose up -d` — Minio (http://localhost:9001, `minioadmin`), PostgreSQL, Adminer (http://localhost:8082).
+3. `go run ./cmd/migrate` — таблицы.
+4. Adminer → «SQL-запрос» → `db/seed.sql`: 8 пользователей (пароль у всех `comets2026`),
+   10 комет (8 опубликованных, черновик 81P у пользователя 2, удалённая 46P), 31 лайк.
+5. `go run ./cmd/comets` → API http://localhost:8080/api/comets, страницы http://localhost:8080/comets.
+   `DB_LOG=1` — вывод SQL-запросов в консоль.
+6. Postman или Insomnia → Import → `docs/comets.postman_collection.json`
+   (в запросе добавления указаны файлы из `media/`, при необходимости выберите их заново).
 
 ## База данных
 
@@ -40,6 +54,7 @@ docker-compose.yml                 Minio, PostgreSQL, Adminer
 | id | bigint | первичный ключ |
 | login | varchar(50) | уникальный |
 | full_name | varchar(100) | |
+| password_hash | varchar(100) | bcrypt-хеш пароля, клиенту не отдаётся |
 
 **comets** — услуги (кометы)
 
@@ -49,8 +64,8 @@ docker-compose.yml                 Minio, PostgreSQL, Adminer
 | comet_name | varchar(100) | наименование |
 | comet_description | varchar(500) | краткое описание |
 | comet_status | varchar(20) | `draft` / `published` / `deleted` (CHECK) |
-| comet_photo | varchar(255) | url изображения в Minio |
-| comet_video | varchar(255) | url видео в Minio |
+| comet_photo | varchar(255) | имя файла изображения в бакете `comets` |
+| comet_video | varchar(255) | имя файла видео в бакете `comets` |
 | orbital_period | numeric(8,2) | период обращения, лет (> 0) |
 | orbit_eccentricity | numeric(4,3) | эксцентриситет (0 ≤ e < 1) |
 | created_at | timestamp | дата создания |
@@ -67,44 +82,64 @@ docker-compose.yml                 Minio, PostgreSQL, Adminer
 | user_id | bigint | первичный ключ (составной) → users.id |
 | comet_id | bigint | первичный ключ (составной) → comets.id |
 
-## Запуск
+## API
 
-1. Параметры БД: `cp .env.example .env` (PostgreSQL на порту 5433, чтобы не конфликтовать с другими базами).
-2. Файлы фото и видео — в `media/` (список и источники — в разделе «Медиа: источники»).
-3. Контейнеры: `docker compose up -d` — Minio (http://localhost:9001, `minioadmin`), PostgreSQL (localhost:5433),
-   Adminer (http://localhost:8082: система PostgreSQL, сервер `postgres`, пользователь/пароль/база из `.env`).
-   Контейнер `minio-init` создаёт бакет `comets`, открывает его на чтение и загружает файлы из `media/`.
-4. Таблицы: `go run ./cmd/migrate`.
-5. Данные: в Adminer → «SQL-запрос» → содержимое `db/seed.sql` → «Выполнить»
-   (8 пользователей, 10 комет: 8 опубликованных, 1 черновик, 1 удалённая, 31 лайк).
-6. Сервер: `go run ./cmd/comets` → http://localhost:8080/comets
-   С выводом SQL-запросов в консоль (видно `LIMIT 1` ленты и `WHERE` фильтра): `DB_LOG=1 go run ./cmd/comets`.
+Ответы — JSON. Ошибки: `{"status": "fail", "message": "…"}` с кодом 400 (неверные данные), 403 (не создатель),
+404 (нет записи), 405 (неверный HTTP-метод), 409 (конфликт: черновик уже есть, недопустимая смена статуса, логин занят).
+Удалённые кометы клиенту не передаются. Системные поля (`id`, `comet_status`, `creator_id`, `created_at`, `formed_at`,
+`comet_photo`, `comet_video`, `likes_count`, `is_mine`, `is_liked`) с клиента передавать нельзя — ответ 400.
 
-Образы `minio/minio` и `minio/mc` удалены с Docker Hub, поэтому используется форк `pgsty/minio` + `pgsty/mc`.
+### Домен услуг (кометы)
 
-## HTTP-методы
+| Метод и URL | Тело запроса | Ответ |
+|---|---|---|
+| `GET /api/comets?min_orbital_period=&max_orbital_period=` | — | 200, массив опубликованных комет, фильтр по периоду в SQL |
+| `GET /api/comets/feed` | — | 200, первая опубликованная комета |
+| `GET /api/comets/feed/{id}` | — | 200, комета по id; 404 — удалена или не опубликована |
+| `GET /api/comets/feed/{id}?next=true` | — | 200, следующая опубликованная после id (после последней — первая) |
+| `GET /api/comets/draft` | — | 200, черновик текущего пользователя (id не указывается); 404 — черновика нет |
+| `POST /api/comets` | multipart/form-data: `comet_name`, `comet_photo` (файл jpeg/png/webp/gif до 10 МБ), `comet_video` (файл mp4/webm до 50 МБ) | 201, созданный черновик; 409 — черновик уже есть |
+| `PUT /api/comets/{id}/publish` | JSON: `comet_description`, `orbital_period`, `orbit_eccentricity` | 200, опубликованная комета; 409 — не черновик; 403 — чужая |
+| `DELETE /api/comets/{id}` | — | 200, `{"id", "comet_status": "deleted"}` — логическое удаление, только своей кометы |
+| `POST /api/comets/{id}/like` | JSON: `{"like": 1}` — поставить, `{"like": 0}` — отменить | 200, `{"comet_id", "like", "likes_count"}` |
 
-| Метод и URL | Контроллер | Работа с БД | Что делает |
-|---|---|---|---|
-| `GET /comets/feed/`, `/comets/feed/{id}`, `?next=true` | `CometFeed` | gORM, `LIMIT 1` | лента: первая / по id / следующая опубликованная комета |
-| `GET /comets/draft` | `CometDraft` | gORM | «Добавление»: нет черновика — форма создания, есть — форма публикации |
-| `GET /comets?min_orbital_period=&max_orbital_period=` | `CometList` | gORM, `WHERE` в SQL | плитка опубликованных с фильтром по периоду |
-| `POST /comets/draft` | `CreateCometDraft` | gORM `Create` | кнопка «Далее»: создать черновик по названию |
-| `POST /comets/draft/publish` | `PublishCometDraft` | gORM `Updates` | кнопка «Опубликовать»: описание, период, эксцентриситет, статус, дата формирования |
-| `POST /comets/{id}/delete` | `DeleteComet` | SQL `UPDATE` без ORM | кнопка удаления на плитке: статус `deleted` |
+Комета в ответе:
 
-- Лента: БД возвращает ровно одну строку (`LIMIT 1`); следующая — `id > ? ORDER BY id LIMIT 1`, после последней — первая.
-- Фильтр: `WHERE orbital_period >= ? AND orbital_period <= ?` выполняется в БД. Слайдеры «от» и «до» — `input type="range"`,
-  число над ползунком обновляется без JavaScript (CSS scroll-driven animations). Крайние значения 0 и 140 — без границы.
-- Лайки: `(SELECT COUNT(*) FROM comet_likes WHERE comet_id = comets.id)` в том же запросе.
-- Удаление: `UPDATE comets SET comet_status = 'deleted' WHERE id = $1 AND comet_status = 'published'` через `database/sql`.
-  Удалённые кометы нигде не показываются: `/comets/feed/{id}` удалённой → 404.
-- Создание: файлы фото и видео в ЛР2 на сервер не передаются (у полей выбора файла нет `name`), в БД url пустые.
-- Фото и видео по умолчанию (`static/media/default_comet.jpg`, `default_comet.mp4`) подставляются, если url в БД пустой
-  или файл в Minio недоступен (HEAD-запрос, результат кешируется на 30 с). У видео вторым `<source>` всегда указан ролик по умолчанию.
-- Проверка ввода: название до 100 символов; при публикации — описание до 500 символов, период > 0 (до 999 999,99),
-  эксцентриситет от 0 до 0,999 (значения округляются до точности столбцов). Ошибки показываются на странице по-русски.
-- Ошибки 404 и 405 (несуществующий адрес, удалённая комета, неверный метод) — страница на русском `error.html`.
+```json
+{
+  "id": 1, "comet_name": "1P/Галлея", "comet_description": "…", "comet_status": "published",
+  "comet_photo": "halley.jpg", "comet_photo_url": "http://localhost:9000/comets/halley.jpg",
+  "comet_video": "halley.mp4", "comet_video_url": "http://localhost:9000/comets/halley.mp4",
+  "orbital_period": 75.92, "orbit_eccentricity": 0.968,
+  "created_at": "2026-09-01T12:00:00Z", "formed_at": "2026-09-01T18:00:00Z",
+  "likes_count": 6, "is_mine": 1, "is_liked": 0
+}
+```
+
+`is_mine` — 1, если создатель кометы — текущий пользователь; `is_liked` — 1, если текущий пользователь поставил лайк.
+
+Статусы меняются только так: черновик → опубликован (`PUT …/publish`), черновик или опубликован → удалён (`DELETE`).
+Вернуть в черновик нельзя. При создании файлы загружаются в Minio с именами вида `comet-11-photo-a1f7ca3f.jpg`
+(латиница, id кометы и случайный суффикс). Запись в БД и загрузка выполняются в одной транзакции:
+при ошибке загрузки черновик не создаётся, уже загруженные файлы удаляются.
+
+### Домен пользователей
+
+| Метод и URL | Тело запроса | Ответ |
+|---|---|---|
+| `POST /api/users/register` | JSON: `login` (3–50: латиница, цифры, _), `full_name`, `password` (от 8 символов) | 201, `{"id", "login", "full_name"}`; 409 — логин занят |
+| `POST /api/users/login` | — | 200, заглушка до ЛР4 |
+| `POST /api/users/logout` | — | 200, заглушка до ЛР4 |
+
+## Страницы (ЛР1–ЛР2)
+
+| Метод и URL | Что делает |
+|---|---|
+| `GET /comets/feed`, `/comets/feed/{id}`, `?next=true` | лента |
+| `GET /comets/draft` | «Добавление»: форма создания или публикации черновика |
+| `GET /comets?min_orbital_period=&max_orbital_period=` | плитка с фильтром (слайдеры без JavaScript) |
+| `POST /comets/draft`, `POST /comets/draft/publish` | «Далее» и «Опубликовать» (gORM) |
+| `POST /comets/{id}/delete` | удаление с плитки — SQL `UPDATE` без ORM |
 
 ## Дизайн — источник
 

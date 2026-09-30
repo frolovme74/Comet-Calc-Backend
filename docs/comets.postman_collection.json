@@ -1,0 +1,316 @@
+{
+  "info": {
+    "name": "Comet-Calc API (ЛР3)",
+    "description": "Веб-сервис: кометы и расчёт расстояния от Солнца. Текущий пользователь зафиксирован (id = 1).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Список комет с фильтром по периоду",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/api/comets?min_orbital_period=6&max_orbital_period=80",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "comets"
+          ],
+          "query": [
+            {
+              "key": "min_orbital_period",
+              "value": "6"
+            },
+            {
+              "key": "max_orbital_period",
+              "value": "80"
+            }
+          ]
+        },
+        "description": "Только опубликованные. is_mine = 1, если создатель — текущий пользователь."
+      }
+    },
+    {
+      "name": "2. Добавление кометы с фото и видео",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 201 || pm.response.code === 200) {",
+              "    pm.collectionVariables.set('comet_id', pm.response.json().id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{base_url}}/api/comets",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "comets"
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "comet_name",
+              "value": "13P/Ольберса",
+              "type": "text"
+            },
+            {
+              "key": "comet_photo",
+              "type": "file",
+              "src": "C:\\Projects\\RIP\\Backend\\media\\halley.jpg"
+            },
+            {
+              "key": "comet_video",
+              "type": "file",
+              "src": "C:\\Projects\\RIP\\Backend\\media\\halley.mp4"
+            }
+          ]
+        },
+        "description": "Создаёт черновик. Файлы загружаются в Minio, в БД сохраняются их имена."
+      }
+    },
+    {
+      "name": "3. Черновик текущего пользователя",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 201 || pm.response.code === 200) {",
+              "    pm.collectionVariables.set('comet_id', pm.response.json().id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/api/comets/draft",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "comets",
+            "draft"
+          ]
+        }
+      }
+    },
+    {
+      "name": "4. Публикация кометы",
+      "request": {
+        "method": "PUT",
+        "url": {
+          "raw": "{{base_url}}/api/comets/{{comet_id}}/publish",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "comets",
+            "{{comet_id}}",
+            "publish"
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"comet_description\": \"Короткопериодическая комета, открытая Генрихом Ольберсом в 1815 году.\",\n  \"orbital_period\": 69.5,\n  \"orbit_eccentricity\": 0.93\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "5. Лента без id (первая комета)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/api/comets/feed",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "comets",
+            "feed"
+          ]
+        }
+      }
+    },
+    {
+      "name": "6. Лента: следующая после id",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/api/comets/feed/{{comet_id}}?next=true",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "comets",
+            "feed",
+            "{{comet_id}}"
+          ],
+          "query": [
+            {
+              "key": "next",
+              "value": "true"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "7. Лайк",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{base_url}}/api/comets/1/like",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "comets",
+            "1",
+            "like"
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"like\": 1\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "like: 1 — поставить, 0 — отменить."
+      }
+    },
+    {
+      "name": "8. Удаление кометы",
+      "request": {
+        "method": "DELETE",
+        "url": {
+          "raw": "{{base_url}}/api/comets/{{comet_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "comets",
+            "{{comet_id}}"
+          ]
+        },
+        "description": "Логическое удаление, только своей кометы."
+      }
+    },
+    {
+      "name": "9. Регистрация пользователя",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{base_url}}/api/users/register",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "register"
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"login\": \"orlova\",\n  \"full_name\": \"Анна Орлова\",\n  \"password\": \"secret123\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "10. Аутентификация (заглушка)",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{base_url}}/api/users/login",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "login"
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"login\": \"frolov\",\n  \"password\": \"comets2026\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "comet_id",
+      "value": "11"
+    }
+  ]
+}

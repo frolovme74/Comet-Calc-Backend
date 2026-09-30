@@ -11,10 +11,12 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/frolovme74/Comet-Calc-Backend/internal/api"
 	"github.com/frolovme74/Comet-Calc-Backend/internal/dsn"
 	"github.com/frolovme74/Comet-Calc-Backend/internal/handlers"
 	"github.com/frolovme74/Comet-Calc-Backend/internal/media"
 	"github.com/frolovme74/Comet-Calc-Backend/internal/repository"
+	"github.com/frolovme74/Comet-Calc-Backend/internal/storage"
 )
 
 func main() {
@@ -25,7 +27,12 @@ func main() {
 		log.Fatalf("подключение к БД: %v", err)
 	}
 
-	checker := media.NewChecker()
+	store, err := storage.FromEnv()
+	if err != nil {
+		log.Fatalf("подключение к Minio: %v", err)
+	}
+
+	checker := media.NewChecker(store.URL)
 	funcs := template.FuncMap{
 		"photo": checker.Photo,
 		"video": checker.Video,
@@ -55,6 +62,7 @@ func main() {
 	h := handlers.NewCometHandler(tmpl, repo)
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("GET /comets/feed", h.CometFeed)
 	mux.HandleFunc("GET /comets/feed/{id...}", h.CometFeed)
 	mux.HandleFunc("GET /comets/draft", h.CometDraft)
 	mux.HandleFunc("GET /comets", h.CometList)
@@ -62,11 +70,12 @@ func main() {
 	mux.HandleFunc("POST /comets/draft/publish", h.PublishCometDraft)
 	mux.HandleFunc("POST /comets/{id}/delete", h.DeleteComet)
 
+	api.New(repo, store).Register(mux)
+
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
-	mux.HandleFunc("/", h.NotFound)
 
 	addr := getenv("ADDR", ":8080")
-	log.Printf("Сервер: http://localhost%s/comets", addr)
+	log.Printf("Сервер: http://localhost%s/comets, API: http://localhost%s/api/comets", addr, addr)
 	log.Fatal(http.ListenAndServe(addr, h.RussianErrors(mux)))
 }
 

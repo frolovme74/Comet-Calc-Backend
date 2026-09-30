@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -13,9 +14,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/frolovme74/Comet-Calc-Backend/internal/repository"
+	"github.com/frolovme74/Comet-Calc-Backend/internal/session"
 )
-
-const CurrentUserID uint = 1
 
 const (
 	orbitalPeriodMin = 0
@@ -61,7 +61,7 @@ func (h *CometHandler) CometFeed(w http.ResponseWriter, r *http.Request) {
 		err  error
 	)
 	if idStr == "" {
-		card, err = h.repo.FirstPublishedComet()
+		card, err = h.repo.FirstPublishedComet(session.CurrentUser().ID)
 	} else {
 		id, convErr := strconv.ParseUint(idStr, 10, 63)
 		if convErr != nil {
@@ -69,9 +69,9 @@ func (h *CometHandler) CometFeed(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if r.URL.Query().Get("next") == "true" {
-			card, err = h.repo.NextPublishedComet(uint(id))
+			card, err = h.repo.NextPublishedComet(session.CurrentUser().ID, uint(id))
 		} else {
-			card, err = h.repo.PublishedCometByID(uint(id))
+			card, err = h.repo.PublishedCometByID(session.CurrentUser().ID, uint(id))
 		}
 	}
 	if errors.Is(err, repository.ErrNotFound) {
@@ -99,7 +99,7 @@ type draftForm struct {
 
 func (h *CometHandler) renderDraft(w http.ResponseWriter, status int, form draftForm) {
 	data := map[string]any{"Tab": "add", "Form": form}
-	comet, err := h.repo.DraftComet(CurrentUserID)
+	comet, err := h.repo.DraftComet(session.CurrentUser().ID)
 	switch {
 	case err == nil:
 		data["Comet"] = comet
@@ -127,11 +127,11 @@ func (h *CometHandler) CreateCometDraft(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if _, err := h.repo.DraftComet(CurrentUserID); err == nil {
+	if _, err := h.repo.DraftComet(session.CurrentUser().ID); err == nil {
 		http.Redirect(w, r, "/comets/draft", http.StatusSeeOther)
 		return
 	}
-	if _, err := h.repo.CreateDraftComet(CurrentUserID, name); err != nil && !errors.Is(err, repository.ErrDraftExists) {
+	if _, err := h.repo.CreateDraftComet(session.CurrentUser().ID, name); err != nil && !errors.Is(err, repository.ErrDraftExists) {
 		h.serverError(w, err)
 		return
 	}
@@ -166,7 +166,7 @@ func (h *CometHandler) PublishCometDraft(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	comet, err := h.repo.PublishDraftComet(CurrentUserID, form.CometDescription, period, eccentricity)
+	comet, err := h.repo.PublishDraftComet(session.CurrentUser().ID, form.CometDescription, period, eccentricity)
 	if errors.Is(err, repository.ErrNotFound) {
 		http.Redirect(w, r, "/comets/draft", http.StatusSeeOther)
 		return
@@ -194,7 +194,7 @@ func (h *CometHandler) CometList(w http.ResponseWriter, r *http.Request) {
 	if hasTo {
 		periodTo = &to
 	}
-	cards, err := h.repo.PublishedComets(periodFrom, periodTo)
+	cards, err := h.repo.PublishedComets(session.CurrentUser().ID, periodFrom, periodTo)
 	if err != nil {
 		h.serverError(w, err)
 		return
@@ -257,6 +257,7 @@ func (h *CometHandler) NotFound(w http.ResponseWriter, r *http.Request) {
 type russianErrors struct {
 	http.ResponseWriter
 	h        *CometHandler
+	api      bool
 	replaced bool
 }
 
@@ -267,8 +268,23 @@ func (rw *russianErrors) WriteHeader(code int) {
 		rw.Header().Del("Content-Length")
 		rw.Header().Del("X-Content-Type-Options")
 		title, text := "Страница не найдена", "Такой страницы нет."
+		if rw.api {
+			title = "Метод API не найден"
+		}
 		if code == http.StatusMethodNotAllowed {
 			title, text = "Метод не поддерживается", "Этот адрес не принимает такой запрос."
+			if rw.api {
+				title = "HTTP-метод не поддерживается для этого адреса"
+			}
+		}
+		if rw.api {
+			rw.Header().Set("Content-Type", "application/json; charset=utf-8")
+			rw.ResponseWriter.WriteHeader(code)
+			_ = json.NewEncoder(rw.ResponseWriter).Encode(struct {
+				Status  string `json:"status"`
+				Message string `json:"message"`
+			}{"fail", title})
+			return
 		}
 		rw.h.render(rw.ResponseWriter, code, "error.html", map[string]any{"Tab": "", "Title": title, "Text": text})
 		return
@@ -285,6 +301,6 @@ func (rw *russianErrors) Write(b []byte) (int, error) {
 
 func (h *CometHandler) RussianErrors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(&russianErrors{ResponseWriter: w, h: h}, r)
+		next.ServeHTTP(&russianErrors{ResponseWriter: w, h: h, api: strings.HasPrefix(r.URL.Path, "/api/")}, r)
 	})
 }

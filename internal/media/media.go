@@ -12,6 +12,7 @@ const (
 )
 
 type Checker struct {
+	url    func(objectName string) string
 	client *http.Client
 	ttl    time.Duration
 	mu     sync.Mutex
@@ -23,8 +24,9 @@ type checkResult struct {
 	checked time.Time
 }
 
-func NewChecker() *Checker {
+func NewChecker(url func(objectName string) string) *Checker {
 	return &Checker{
+		url:    url,
 		client: &http.Client{Timeout: 700 * time.Millisecond},
 		ttl:    30 * time.Second,
 		cache:  map[string]checkResult{},
@@ -51,16 +53,16 @@ func (c *Checker) available(url string) bool {
 	return ok
 }
 
-func (c *Checker) Photo(url string) string {
-	if url == "" || !c.available(url) {
+func (c *Checker) Photo(objectName string) string {
+	if objectName == "" || !c.available(c.url(objectName)) {
 		return DefaultCometPhoto
 	}
-	return url
+	return c.url(objectName)
 }
 
-func (c *Checker) Video(url string) string {
-	if url == "" || !c.available(url) {
+func (c *Checker) Video(objectName string) string {
+	if objectName == "" || !c.available(c.url(objectName)) {
 		return DefaultCometVideo
 	}
-	return url
+	return c.url(objectName)
 }

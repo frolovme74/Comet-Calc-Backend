@@ -12,6 +12,9 @@ import (
 var (
 	ErrNotFound    = errors.New("запись не найдена")
 	ErrDraftExists = errors.New("у пользователя уже есть черновик")
+	ErrForbidden   = errors.New("действие доступно только создателю кометы")
+	ErrWrongStatus = errors.New("недопустимая смена статуса")
+	ErrLoginTaken  = errors.New("логин уже занят")
 )
 
 type Repository struct {

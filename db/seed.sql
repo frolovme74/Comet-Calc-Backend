@@ -1,68 +1,70 @@
 -- Начальные данные для ЛР2. Выполнить в Adminer: «SQL-запрос» → вставить → «Выполнить».
 -- Таблицы перед этим создаёт миграция: go run ./cmd/migrate
+-- Черновик 81P принадлежит пользователю 2, у текущего пользователя (id = 1) черновика нет.
+-- Пароль всех пользователей: comets2026 (в БД хранится bcrypt-хеш). В comet_photo/comet_video — имена файлов в бакете comets.
 
 TRUNCATE comet_likes, comets, users RESTART IDENTITY;
 
-INSERT INTO users (id, login, full_name) VALUES
-    (1, 'frolov', 'Михаил Фролов'),
-    (2, 'ivanova', 'Анна Иванова'),
-    (3, 'petrov', 'Сергей Петров'),
-    (4, 'smirnova', 'Ольга Смирнова'),
-    (5, 'kuznetsov', 'Дмитрий Кузнецов'),
-    (6, 'sokolova', 'Мария Соколова'),
-    (7, 'popov', 'Игорь Попов'),
-    (8, 'lebedeva', 'Елена Лебедева');
+INSERT INTO users (id, login, full_name, password_hash) VALUES
+    (1, 'frolov', 'Михаил Фролов', '$2a$10$uVRLVAIsMhdjxXx5RxlGFuowOhSjfZh8T39gItrb1gywOz4ZveBCS'),
+    (2, 'ivanova', 'Анна Иванова', '$2a$10$uVRLVAIsMhdjxXx5RxlGFuowOhSjfZh8T39gItrb1gywOz4ZveBCS'),
+    (3, 'petrov', 'Сергей Петров', '$2a$10$uVRLVAIsMhdjxXx5RxlGFuowOhSjfZh8T39gItrb1gywOz4ZveBCS'),
+    (4, 'smirnova', 'Ольга Смирнова', '$2a$10$uVRLVAIsMhdjxXx5RxlGFuowOhSjfZh8T39gItrb1gywOz4ZveBCS'),
+    (5, 'kuznetsov', 'Дмитрий Кузнецов', '$2a$10$uVRLVAIsMhdjxXx5RxlGFuowOhSjfZh8T39gItrb1gywOz4ZveBCS'),
+    (6, 'sokolova', 'Мария Соколова', '$2a$10$uVRLVAIsMhdjxXx5RxlGFuowOhSjfZh8T39gItrb1gywOz4ZveBCS'),
+    (7, 'popov', 'Игорь Попов', '$2a$10$uVRLVAIsMhdjxXx5RxlGFuowOhSjfZh8T39gItrb1gywOz4ZveBCS'),
+    (8, 'lebedeva', 'Елена Лебедева', '$2a$10$uVRLVAIsMhdjxXx5RxlGFuowOhSjfZh8T39gItrb1gywOz4ZveBCS');
 
 INSERT INTO comets (id, comet_name, comet_description, comet_status, comet_photo, comet_video,
                     orbital_period, orbit_eccentricity, created_at, creator_id, formed_at) VALUES
     (1, '1P/Галлея',
      'Самая известная короткопериодическая комета: возвращается к Солнцу примерно раз в 76 лет. Последний перигелий — 9 февраля 1986 года, тогда её вблизи впервые сфотографировал аппарат «Джотто». Следующее возвращение — 2061 год.',
-     'published', 'http://localhost:9000/comets/halley.jpg', 'http://localhost:9000/comets/halley.mp4',
+     'published', 'halley.jpg', 'halley.mp4',
      75.92, 0.968, '2026-09-01 12:00:00', 1, '2026-09-01 18:00:00'),
     (2, '2P/Энке',
      'Комета с самым коротким периодом среди ярких комет — около 3,3 года. Впервые замечена Пьером Мешеном в 1786 году, орбиту рассчитал Иоганн Энке. С её пылевым шлейфом связан метеорный поток Тауриды.',
-     'published', 'http://localhost:9000/comets/encke.jpg', 'http://localhost:9000/comets/encke.mp4',
+     'published', 'encke.jpg', 'encke.mp4',
      3.31, 0.847, '2026-09-02 12:00:00', 1, '2026-09-02 18:00:00'),
     (3, '67P/Чурюмова — Герасименко',
      'Комета, открытая советскими астрономами в 1969 году. Цель миссии ESA «Розетта»: в 2014 году на её ядро впервые в истории сел спускаемый аппарат «Филы».',
-     'published', 'http://localhost:9000/comets/churyumov.jpg', 'http://localhost:9000/comets/churyumov.mp4',
+     'published', 'churyumov.jpg', 'churyumov.mp4',
      6.44, 0.641, '2026-09-03 12:00:00', 1, '2026-09-03 18:00:00'),
     (4, '12P/Понса — Брукса',
      'Комета с периодом около 71 года, известная вспышками яркости: из-за формы комы в 2023 году её прозвали «рогатой». Прошла перигелий 21 апреля 2024 года.',
-     'published', 'http://localhost:9000/comets/pons_brooks.jpg', 'http://localhost:9000/comets/pons_brooks.mp4',
+     'published', 'pons_brooks.jpg', 'pons_brooks.mp4',
      71.24, 0.955, '2026-09-04 12:00:00', 1, '2026-09-04 18:00:00'),
     (5, '109P/Свифта — Туттля',
      'Родительская комета метеорного потока Персеиды. Ядро диаметром около 26 км — крупнейший объект, регулярно сближающийся с Землёй. Последний перигелий — 1992 год, следующий — 2126 год.',
-     'published', 'http://localhost:9000/comets/swift_tuttle.jpg', 'http://localhost:9000/comets/swift_tuttle.mp4',
+     'published', 'swift_tuttle.jpg', 'swift_tuttle.mp4',
      133.28, 0.963, '2026-09-05 12:00:00', 1, '2026-09-05 18:00:00'),
     (6, '9P/Темпеля',
      'В 2005 году аппарат NASA «Дип Импакт» сбросил на ядро кометы медный ударник массой около 370 кг, чтобы изучить вещество под поверхностью. В 2011 году комету повторно посетил «Стардаст».',
-     'published', 'http://localhost:9000/comets/tempel1.jpg', 'http://localhost:9000/comets/tempel1.mp4',
+     'published', 'tempel1.jpg', 'tempel1.mp4',
      5.58, 0.51, '2026-09-06 12:00:00', 1, '2026-09-06 18:00:00'),
     (7, '55P/Темпеля — Туттля',
      'Родительская комета метеорного потока Леониды. Открыта независимо Эрнстом Темпелем и Хорасом Туттлем в 1865–1866 годах. Последний перигелий — 1998 год, следующий — 2031 год.',
-     'published', 'http://localhost:9000/comets/tempel_tuttle.jpg', 'http://localhost:9000/comets/tempel_tuttle.mp4',
+     'published', 'tempel_tuttle.jpg', 'tempel_tuttle.mp4',
      33.24, 0.906, '2026-09-07 12:00:00', 1, '2026-09-07 18:00:00'),
     (8, '103P/Хартли',
      'Небольшая комета с ядром в форме арахиса длиной около 2 км. В ноябре 2010 года её снял с расстояния около 700 км аппарат NASA EPOXI (бывший «Дип Импакт»).',
-     'published', 'http://localhost:9000/comets/hartley2.jpg', 'http://localhost:9000/comets/hartley2.mp4',
+     'published', 'hartley2.jpg', 'hartley2.mp4',
      6.48, 0.694, '2026-09-08 12:00:00', 1, '2026-09-08 18:00:00'),
     (9, '81P/Вильда',
      'В 2004 году аппарат NASA «Стардаст» пролетел сквозь кому кометы и собрал частицы пыли, которые в 2006 году доставил на Землю.',
-     'draft', 'http://localhost:9000/comets/wild2.jpg', 'http://localhost:9000/comets/wild2.mp4',
-     6.41, 0.537, '2026-09-09 12:00:00', 1, NULL),
+     'draft', 'wild2.jpg', 'wild2.mp4',
+     6.41, 0.537, '2026-09-09 12:00:00', 2, NULL),
     (10, '46P/Виртанена',
      'В декабре 2018 года прошла в 0,08 а.е. от Земли — одно из самых тесных сближений кометы с Землёй за последние десятилетия.',
-     'deleted', 'http://localhost:9000/comets/wirtanen.jpg', 'http://localhost:9000/comets/wirtanen.mp4',
+     'deleted', 'wirtanen.jpg', 'wirtanen.mp4',
      5.44, 0.659, '2026-09-10 12:00:00', 1, '2026-09-10 18:00:00');
 
 INSERT INTO comet_likes (user_id, comet_id) VALUES
-    (1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1),
-    (1, 2), (2, 2), (1, 3), (2, 3), (3, 3), (1, 4),
-    (2, 4), (1, 5), (2, 5), (3, 5), (4, 5), (5, 5),
-    (6, 5), (7, 5), (1, 6), (2, 6), (3, 6), (4, 6),
-    (5, 6), (1, 7), (2, 7), (3, 7), (4, 7), (1, 8),
-    (1, 10);
+    (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (7, 1),
+    (2, 2), (3, 2), (2, 3), (3, 3), (4, 3), (2, 4),
+    (3, 4), (2, 5), (3, 5), (4, 5), (5, 5), (6, 5),
+    (7, 5), (8, 5), (2, 6), (3, 6), (4, 6), (5, 6),
+    (6, 6), (2, 7), (3, 7), (4, 7), (5, 7), (2, 8),
+    (2, 10);
 
 SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));
 SELECT setval('comets_id_seq', (SELECT MAX(id) FROM comets));

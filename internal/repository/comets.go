@@ -13,17 +13,20 @@ import (
 type CometCard struct {
 	models.Comet
 	LikesCount int
+	IsMine     int
+	IsLiked    int
 }
 
-func (r *Repository) publishedComets() *gorm.DB {
+func (r *Repository) publishedComets(userID uint) *gorm.DB {
 	likes := r.db.Model(&models.CometLike{}).Select("COUNT(*)").Where("comet_likes.comet_id = comets.id")
+	liked := r.db.Model(&models.CometLike{}).Select("COUNT(*)").Where("comet_likes.comet_id = comets.id AND comet_likes.user_id = ?", userID)
 	return r.db.Model(&models.Comet{}).
-		Select("comets.*, (?) AS likes_count", likes).
+		Select("comets.*, (?) AS likes_count, (comets.creator_id = ?)::int AS is_mine, (?) AS is_liked", likes, userID, liked).
 		Where("comets.comet_status = ?", models.CometStatusPublished)
 }
 
-func (r *Repository) PublishedComets(periodFrom, periodTo *float64) ([]CometCard, error) {
-	query := r.publishedComets()
+func (r *Repository) PublishedComets(userID uint, periodFrom, periodTo *float64) ([]CometCard, error) {
+	query := r.publishedComets(userID)
 	if periodFrom != nil {
 		query = query.Where("comets.orbital_period >= ?", *periodFrom)
 	}
@@ -35,23 +38,23 @@ func (r *Repository) PublishedComets(periodFrom, periodTo *float64) ([]CometCard
 	return cards, err
 }
 
-func (r *Repository) FirstPublishedComet() (CometCard, error) {
+func (r *Repository) FirstPublishedComet(userID uint) (CometCard, error) {
 	var card CometCard
-	err := r.publishedComets().Order("comets.id").Limit(1).Take(&card).Error
+	err := r.publishedComets(userID).Order("comets.id").Limit(1).Take(&card).Error
 	return card, notFound(err)
 }
 
-func (r *Repository) PublishedCometByID(id uint) (CometCard, error) {
+func (r *Repository) PublishedCometByID(userID, id uint) (CometCard, error) {
 	var card CometCard
-	err := r.publishedComets().Where("comets.id = ?", id).Limit(1).Take(&card).Error
+	err := r.publishedComets(userID).Where("comets.id = ?", id).Limit(1).Take(&card).Error
 	return card, notFound(err)
 }
 
-func (r *Repository) NextPublishedComet(id uint) (CometCard, error) {
+func (r *Repository) NextPublishedComet(userID, id uint) (CometCard, error) {
 	var card CometCard
-	err := r.publishedComets().Where("comets.id > ?", id).Order("comets.id").Limit(1).Take(&card).Error
+	err := r.publishedComets(userID).Where("comets.id > ?", id).Order("comets.id").Limit(1).Take(&card).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return r.FirstPublishedComet()
+		return r.FirstPublishedComet(userID)
 	}
 	return card, err
 }
