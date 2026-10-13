@@ -79,8 +79,11 @@ docs/comets.postman_collection.json  коллекция из 10 запросов
 
 | Столбец | Тип | |
 |---|---|---|
-| user_id | bigint | первичный ключ (составной) → users.id |
-| comet_id | bigint | первичный ключ (составной) → comets.id |
+| id | bigint | первичный ключ |
+| user_id | bigint | внешний ключ → users.id |
+| comet_id | bigint | внешний ключ → comets.id |
+
+Уникальный индекс `idx_comet_likes_user_comet (user_id, comet_id)` — один пользователь ставит комете не более одного лайка.
 
 ## API
 
@@ -89,21 +92,21 @@ docs/comets.postman_collection.json  коллекция из 10 запросов
 Удалённые кометы клиенту не передаются. Системные поля (`id`, `comet_status`, `creator_id`, `created_at`, `formed_at`,
 `comet_photo`, `comet_video`, `likes_count`, `is_mine`, `is_liked`) с клиента передавать нельзя — ответ 400.
 
+Всего 10 методов: 7 в домене услуг (3 GET, 2 POST, PUT, DELETE) и 3 POST в домене пользователей.
+
 ### Домен услуг (кометы)
 
 | Метод и URL | Тело запроса | Ответ |
 |---|---|---|
-| `GET /api/comets?min_orbital_period=&max_orbital_period=` | — | 200, массив опубликованных комет, фильтр по периоду в SQL |
-| `GET /api/comets/feed` | — | 200, первая опубликованная комета |
-| `GET /api/comets/feed/{id}` | — | 200, комета по id; 404 — удалена или не опубликована |
-| `GET /api/comets/feed/{id}?next=true` | — | 200, следующая опубликованная после id (после последней — первая) |
+| `GET /api/comets?min_orbital_period=&max_orbital_period=` | — | 200, массив опубликованных комет, фильтр по периоду в SQL; у каждой признак `is_mine` |
+| `GET /api/comets/feed/{id}?next=true` | — | 200, одна опубликованная комета с признаком `is_liked`: без `id` — первая, с `id` — по id, с `?next=true` — следующая после id (после последней — первая); 404 — удалена или не опубликована |
 | `GET /api/comets/draft` | — | 200, черновик текущего пользователя (id не указывается); 404 — черновика нет |
 | `POST /api/comets` | multipart/form-data: `comet_name`, `comet_photo` (файл jpeg/png/webp/gif до 10 МБ), `comet_video` (файл mp4/webm до 50 МБ) | 201, созданный черновик; 409 — черновик уже есть |
 | `PUT /api/comets/{id}/publish` | JSON: `comet_description`, `orbital_period`, `orbit_eccentricity` | 200, опубликованная комета; 409 — не черновик; 403 — чужая |
 | `DELETE /api/comets/{id}` | — | 200, `{"id", "comet_status": "deleted"}` — логическое удаление, только своей кометы |
 | `POST /api/comets/{id}/like` | JSON: `{"like": 1}` — поставить, `{"like": 0}` — отменить | 200, `{"comet_id", "like", "likes_count"}` |
 
-Комета в ответе:
+Комета в ответе списка (`GET /api/comets`):
 
 ```json
 {
@@ -112,11 +115,16 @@ docs/comets.postman_collection.json  коллекция из 10 запросов
   "comet_video": "halley.mp4", "comet_video_url": "http://localhost:9000/comets/halley.mp4",
   "orbital_period": 75.92, "orbit_eccentricity": 0.968,
   "created_at": "2026-09-01T12:00:00Z", "formed_at": "2026-09-01T18:00:00Z",
-  "likes_count": 6, "is_mine": 1, "is_liked": 0
+  "likes_count": 6, "is_mine": 1
 }
 ```
 
-`is_mine` — 1, если создатель кометы — текущий пользователь; `is_liked` — 1, если текущий пользователь поставил лайк.
+Признаки 0/1 зависят от метода:
+
+- в списке `GET /api/comets` — `is_mine`: 1, если создатель кометы — текущий пользователь (по нему SPA покажет на плитке кнопку удаления только у своих комет);
+- в ленте `GET /api/comets/feed` — вместо него `is_liked`: 1, если текущий пользователь лайкнул эту комету (по нему SPA покажет в ленте, стоит ли лайк).
+
+В ответах черновика, добавления и публикации признаков и `likes_count` нет.
 
 Статусы меняются только так: черновик → опубликован (`PUT …/publish`), черновик или опубликован → удалён (`DELETE`).
 Вернуть в черновик нельзя. При создании файлы загружаются в Minio с именами вида `comet-11-photo-a1f7ca3f.jpg`
@@ -135,7 +143,7 @@ docs/comets.postman_collection.json  коллекция из 10 запросов
 
 | Метод и URL | Что делает |
 |---|---|
-| `GET /comets/feed`, `/comets/feed/{id}`, `?next=true` | лента |
+| `GET /comets/feed`, `/comets/feed/{id}`, `?next=true` | лента; по адресу удалённой кометы — редирект на `/comets/feed` |
 | `GET /comets/draft` | «Добавление»: форма создания или публикации черновика |
 | `GET /comets?min_orbital_period=&max_orbital_period=` | плитка с фильтром (слайдеры без JavaScript) |
 | `POST /comets/draft`, `POST /comets/draft/publish` | «Далее» и «Опубликовать» (gORM) |

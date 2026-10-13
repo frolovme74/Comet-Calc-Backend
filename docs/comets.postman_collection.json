@@ -6,7 +6,7 @@
   },
   "item": [
     {
-      "name": "1. Список комет с фильтром по периоду",
+      "name": "1. GET список комет с фильтром по периоду",
       "request": {
         "method": "GET",
         "url": {
@@ -29,11 +29,76 @@
             }
           ]
         },
-        "description": "Только опубликованные. is_mine = 1, если создатель — текущий пользователь."
+        "description": "Только опубликованные. is_mine = 1, если создатель кометы — текущий пользователь."
       }
     },
     {
-      "name": "2. Добавление кометы с фото и видео",
+      "name": "2. GET лента",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/api/comets/feed/:id?next=true",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "comets",
+            "feed",
+            ":id"
+          ],
+          "query": [
+            {
+              "key": "next",
+              "value": "true",
+              "disabled": true,
+              "description": "true — вернуть следующую комету после id"
+            }
+          ],
+          "variable": [
+            {
+              "key": "id",
+              "value": "",
+              "description": "id кометы; пусто — первая комета ленты"
+            }
+          ]
+        },
+        "description": "Одна опубликованная комета. Без id — первая, с id — по id, с ?next=true — следующая после id. is_liked = 1, если текущий пользователь лайкнул комету."
+      }
+    },
+    {
+      "name": "3. GET черновик",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 201 || pm.response.code === 200) {",
+              "    pm.collectionVariables.set('comet_id', pm.response.json().id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/api/comets/draft",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "comets",
+            "draft"
+          ]
+        },
+        "description": "Черновик текущего пользователя, id не указывается."
+      }
+    },
+    {
+      "name": "4. POST добавление кометы с фото и видео",
       "event": [
         {
           "listen": "test",
@@ -83,37 +148,7 @@
       }
     },
     {
-      "name": "3. Черновик текущего пользователя",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "if (pm.response.code === 201 || pm.response.code === 200) {",
-              "    pm.collectionVariables.set('comet_id', pm.response.json().id);",
-              "}"
-            ]
-          }
-        }
-      ],
-      "request": {
-        "method": "GET",
-        "url": {
-          "raw": "{{base_url}}/api/comets/draft",
-          "host": [
-            "{{base_url}}"
-          ],
-          "path": [
-            "api",
-            "comets",
-            "draft"
-          ]
-        }
-      }
-    },
-    {
-      "name": "4. Публикация кометы",
+      "name": "5. PUT публикация кометы",
       "request": {
         "method": "PUT",
         "url": {
@@ -146,48 +181,25 @@
       }
     },
     {
-      "name": "5. Лента без id (первая комета)",
+      "name": "6. DELETE удаление кометы",
       "request": {
-        "method": "GET",
+        "method": "DELETE",
         "url": {
-          "raw": "{{base_url}}/api/comets/feed",
+          "raw": "{{base_url}}/api/comets/{{comet_id}}",
           "host": [
             "{{base_url}}"
           ],
           "path": [
             "api",
             "comets",
-            "feed"
-          ]
-        }
-      }
-    },
-    {
-      "name": "6. Лента: следующая после id",
-      "request": {
-        "method": "GET",
-        "url": {
-          "raw": "{{base_url}}/api/comets/feed/{{comet_id}}?next=true",
-          "host": [
-            "{{base_url}}"
-          ],
-          "path": [
-            "api",
-            "comets",
-            "feed",
             "{{comet_id}}"
-          ],
-          "query": [
-            {
-              "key": "next",
-              "value": "true"
-            }
           ]
-        }
+        },
+        "description": "Логическое удаление, только своей кометы."
       }
     },
     {
-      "name": "7. Лайк",
+      "name": "7. POST лайк",
       "request": {
         "method": "POST",
         "url": {
@@ -221,25 +233,7 @@
       }
     },
     {
-      "name": "8. Удаление кометы",
-      "request": {
-        "method": "DELETE",
-        "url": {
-          "raw": "{{base_url}}/api/comets/{{comet_id}}",
-          "host": [
-            "{{base_url}}"
-          ],
-          "path": [
-            "api",
-            "comets",
-            "{{comet_id}}"
-          ]
-        },
-        "description": "Логическое удаление, только своей кометы."
-      }
-    },
-    {
-      "name": "9. Регистрация пользователя",
+      "name": "8. POST регистрация",
       "request": {
         "method": "POST",
         "url": {
@@ -271,7 +265,7 @@
       }
     },
     {
-      "name": "10. Аутентификация (заглушка)",
+      "name": "9. POST аутентификация (заглушка)",
       "request": {
         "method": "POST",
         "url": {
@@ -299,6 +293,23 @@
               "language": "json"
             }
           }
+        }
+      }
+    },
+    {
+      "name": "10. POST деавторизация (заглушка)",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{base_url}}/api/users/logout",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "logout"
+          ]
         }
       }
     }

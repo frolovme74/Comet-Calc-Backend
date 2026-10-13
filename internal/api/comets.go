@@ -49,9 +49,9 @@ func (a *API) GetComets(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	resp := make([]CometResponse, 0, len(cards))
+	resp := make([]CometListResponse, 0, len(cards))
 	for _, c := range cards {
-		resp = append(resp, a.cardResponse(c))
+		resp = append(resp, a.cometListResponse(c))
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -82,7 +82,7 @@ func (a *API) GetCometFeed(w http.ResponseWriter, r *http.Request) {
 		a.repoError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, a.cardResponse(card))
+	writeJSON(w, http.StatusOK, a.cometFeedResponse(card))
 }
 
 func (a *API) GetCometDraft(w http.ResponseWriter, r *http.Request) {

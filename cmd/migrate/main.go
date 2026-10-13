@@ -19,6 +19,14 @@ func main() {
 		log.Fatalf("подключение к БД: %v", err)
 	}
 
+	likes := &models.CometLike{}
+	if db.Migrator().HasTable(likes) && !db.Migrator().HasColumn(likes, "id") {
+		err := db.Exec("ALTER TABLE comet_likes DROP CONSTRAINT comet_likes_pkey, ADD COLUMN id bigserial PRIMARY KEY").Error
+		if err != nil {
+			log.Fatalf("первичный ключ comet_likes: %v", err)
+		}
+	}
+
 	if err := db.AutoMigrate(&models.User{}, &models.Comet{}, &models.CometLike{}); err != nil {
 		log.Fatalf("миграция: %v", err)
 	}

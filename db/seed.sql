@@ -68,3 +68,4 @@ INSERT INTO comet_likes (user_id, comet_id) VALUES
 
 SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));
 SELECT setval('comets_id_seq', (SELECT MAX(id) FROM comets));
+SELECT setval('comet_likes_id_seq', (SELECT MAX(id) FROM comet_likes));

@@ -98,11 +98,11 @@ func (r *Repository) SetCometLike(userID, cometID uint, like bool) (int64, error
 		if err != nil {
 			return notFound(err)
 		}
-		record := models.CometLike{UserID: userID, CometID: cometID}
 		if like {
+			record := models.CometLike{UserID: userID, CometID: cometID}
 			err = tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&record).Error
 		} else {
-			err = tx.Delete(&record).Error
+			err = tx.Where("user_id = ? AND comet_id = ?", userID, cometID).Delete(&models.CometLike{}).Error
 		}
 		if err != nil {
 			return err

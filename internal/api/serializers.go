@@ -20,9 +20,18 @@ type CometResponse struct {
 	OrbitEccentricity *float64   `json:"orbit_eccentricity"`
 	CreatedAt         time.Time  `json:"created_at"`
 	FormedAt          *time.Time `json:"formed_at"`
-	LikesCount        int        `json:"likes_count"`
-	IsMine            int        `json:"is_mine"`
-	IsLiked           int        `json:"is_liked"`
+}
+
+type CometListResponse struct {
+	CometResponse
+	LikesCount int `json:"likes_count"`
+	IsMine     int `json:"is_mine"`
+}
+
+type CometFeedResponse struct {
+	CometResponse
+	LikesCount int `json:"likes_count"`
+	IsLiked    int `json:"is_liked"`
 }
 
 type PublishCometRequest struct {
@@ -80,10 +89,12 @@ func (a *API) cometResponse(c models.Comet) CometResponse {
 	}
 }
 
-func (a *API) cardResponse(card repository.CometCard) CometResponse {
-	resp := a.cometResponse(card.Comet)
-	resp.LikesCount, resp.IsMine, resp.IsLiked = card.LikesCount, card.IsMine, card.IsLiked
-	return resp
+func (a *API) cometListResponse(card repository.CometCard) CometListResponse {
+	return CometListResponse{CometResponse: a.cometResponse(card.Comet), LikesCount: card.LikesCount, IsMine: card.IsMine}
+}
+
+func (a *API) cometFeedResponse(card repository.CometCard) CometFeedResponse {
+	return CometFeedResponse{CometResponse: a.cometResponse(card.Comet), LikesCount: card.LikesCount, IsLiked: card.IsLiked}
 }
 
 func userResponse(u models.User) UserResponse {

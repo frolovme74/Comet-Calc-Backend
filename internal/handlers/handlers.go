@@ -74,6 +74,10 @@ func (h *CometHandler) CometFeed(w http.ResponseWriter, r *http.Request) {
 			card, err = h.repo.PublishedCometByID(session.CurrentUser().ID, uint(id))
 		}
 	}
+	if errors.Is(err, repository.ErrNotFound) && idStr != "" {
+		http.Redirect(w, r, "/comets/feed", http.StatusSeeOther)
+		return
+	}
 	if errors.Is(err, repository.ErrNotFound) {
 		h.NotFound(w, r)
 		return
