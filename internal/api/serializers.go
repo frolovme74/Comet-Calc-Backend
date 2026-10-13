@@ -61,6 +61,17 @@ type RegisterRequest struct {
 	Password string `json:"password"`
 }
 
+type LoginRequest struct {
+	Login    string `json:"login" example:"frolov"`
+	Password string `json:"password" example:"comets2026"`
+}
+
+type LoginResponse struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type" example:"Bearer"`
+	ExpiresIn   int    `json:"expires_in" example:"3600"`
+}
+
 type UserResponse struct {
 	ID       uint   `json:"id"`
 	Login    string `json:"login"`

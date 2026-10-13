@@ -1,16 +1,18 @@
-# Comet-Calc-Backend — расстояние кометы от Солнца (ЛР3)
+# Comet-Calc-Backend — расстояние кометы от Солнца (ЛР4)
 
 Тема: расстояние кометы от Солнца по её координатам на небесной сфере.
 Услуга — **комета**, заявка — **расчёт** расстояния.
 
 Поля услуги по теме: период обращения P (лет) и эксцентриситет орбиты e. Фильтрация — по периоду (от и до).
 
-ЛР3: веб-сервис (REST API, JSON) со всей бизнес-логикой, кроме авторизации. Все методы начинаются с `/api`.
-Работа с БД — через ORM (gORM), фото и видео загружаются файлами в Minio, в БД сохраняются имена файлов.
-Текущий пользователь зафиксирован константой через функцию-singleton `session.CurrentUser()` (id = 1).
-Страницы из ЛР1–ЛР2 (`/comets`, `/comets/feed`, `/comets/draft`) продолжают работать.
+ЛР4: веб-сервис (REST API, JSON) с авторизацией и Swagger. Все методы начинаются с `/api`.
+Аутентификация — по логину и паролю, сервер выдаёт JWT; токен передаётся в заголовке `Authorization: Bearer …`.
+Выход — занесение токена в чёрный список (blacklist) в Redis до истечения его срока.
+Без авторизации доступно только чтение (список и лента комет), регистрация и вход; методы создателя — с токеном.
+Создатель новой кометы подставляется из токена. Работа с БД — через ORM (gORM), фото и видео — в Minio.
+Страницы из ЛР1–ЛР2 (`/comets`, `/comets/feed`, `/comets/draft`) продолжают работать от имени пользователя-константы.
 
-Бэкенд: Go 1.25, `net/http`, gORM + PostgreSQL, minio-go, bcrypt, godotenv.
+Бэкенд: Go 1.25, `net/http`, gORM + PostgreSQL, Redis (go-redis), golang-jwt, swaggo, minio-go, bcrypt, godotenv.
 
 ## Структура
 
@@ -19,29 +21,37 @@ cmd/comets/main.go                   сервер: страницы (SSR) и API
 cmd/migrate/main.go                  миграции: создание таблиц по моделям (gORM AutoMigrate)
 internal/models/                     модели = таблицы: User, Comet, CometLike
 internal/api/                        веб-сервис: api.go (роутинг /api, ошибки), comets.go, users.go,
+                                     auth.go (middleware: проверка JWT и чёрного списка),
                                      serializers.go (сериализаторы: структуры запросов и ответов JSON)
+internal/auth/auth.go                JWT: выпуск и проверка токена (HS256), claims с id и логином пользователя
+internal/blacklist/blacklist.go      Redis: чёрный список отозванных токенов
 internal/repository/                 работа с БД через gORM (удаление на странице ЛР2 — SQL UPDATE)
-internal/session/session.go          функция-singleton CurrentUser(): текущий пользователь (константа id = 1)
+internal/session/session.go          пользователь-константа для страниц ЛР1–ЛР2 (в API не используется)
 internal/storage/storage.go          Minio: загрузка и удаление файлов, генерация имён, url файла
 internal/handlers/handlers.go        страницы (SSR) из ЛР1–ЛР2
 internal/media/media.go              фото и видео по умолчанию для страниц
 templates/, static/                  шаблоны и стили страниц
 db/seed.sql                          начальные данные (Adminer → «SQL-запрос»)
-docs/comets.mdj                      диаграммы StarUML
+docs/docs.go, swagger.json, .yaml    описание API для Swagger (генерируется: swag init -g cmd/comets/main.go -o docs)
+docs/comets.mdj                      диаграммы StarUML: ER, классов, последовательности
 docs/comets.postman_collection.json  коллекция из 10 запросов для Postman / Insomnia
 ```
 
 ## Запуск
 
-1. `cp .env.example .env` — параметры PostgreSQL (порт 5433) и Minio.
-2. `docker compose up -d` — Minio (http://localhost:9001, `minioadmin`), PostgreSQL, Adminer (http://localhost:8082).
+1. `cp .env.example .env` — параметры PostgreSQL (порт 5433), Minio, Redis (`REDIS_HOST=localhost`, `REDIS_PORT=6379`,
+   `REDIS_PASSWORD`) и JWT (`JWT_SECRET` — секрет подписи, `JWT_EXPIRES_IN` — срок жизни токена, по умолчанию `1h`).
+2. `docker compose up -d` — Minio (http://localhost:9001, `minioadmin`), PostgreSQL, Adminer (http://localhost:8082), Redis.
 3. `go run ./cmd/migrate` — таблицы.
 4. Adminer → «SQL-запрос» → `db/seed.sql`: 8 пользователей (пароль у всех `comets2026`),
    10 комет (8 опубликованных, черновик 81P у пользователя 2, удалённая 46P), 31 лайк.
-5. `go run ./cmd/comets` → API http://localhost:8080/api/comets, страницы http://localhost:8080/comets.
-   `DB_LOG=1` — вывод SQL-запросов в консоль.
-6. Postman или Insomnia → Import → `docs/comets.postman_collection.json`
-   (в запросе добавления указаны файлы из `media/`, при необходимости выберите их заново).
+5. `go run ./cmd/comets` → API http://localhost:8080/api/comets, Swagger http://localhost:8080/swagger/,
+   страницы http://localhost:8080/comets. `DB_LOG=1` — вывод SQL-запросов в консоль.
+6. Swagger: выполнить `POST /users/login`, скопировать `access_token`, нажать Authorize и ввести `Bearer <токен>`.
+7. Postman или Insomnia → Import → `docs/comets.postman_collection.json`: запрос аутентификации сохраняет токен
+   в переменную `token`, остальные запросы передают его в заголовке `Authorization`.
+8. Содержимое Redis: `docker exec -it comets-redis redis-cli -a <REDIS_PASSWORD> keys "*"` — ключи `comets.jwt.<токен>`,
+   значение — логин пользователя, срок жизни ключа — до истечения токена.
 
 ## База данных
 
@@ -87,12 +97,17 @@ docs/comets.postman_collection.json  коллекция из 10 запросов
 
 ## API
 
-Ответы — JSON. Ошибки: `{"status": "fail", "message": "…"}` с кодом 400 (неверные данные), 403 (не создатель),
+Ответы — JSON. Ошибки: `{"status": "fail", "message": "…"}` с кодом 400 (неверные данные),
+401 (нет токена, токен недействителен, просрочен или отозван; неверный логин или пароль), 403 (не создатель),
 404 (нет записи), 405 (неверный HTTP-метод), 409 (конфликт: черновик уже есть, недопустимая смена статуса, логин занят).
 Удалённые кометы клиенту не передаются. Системные поля (`id`, `comet_status`, `creator_id`, `created_at`, `formed_at`,
 `comet_photo`, `comet_video`, `likes_count`, `is_mine`, `is_liked`) с клиента передавать нельзя — ответ 400.
 
 Всего 10 методов: 7 в домене услуг (3 GET, 2 POST, PUT, DELETE) и 3 POST в домене пользователей.
+
+Доступ: **гость** (без токена) — список, лента, регистрация, аутентификация; **создатель** (с токеном) — дополнительно
+черновик, добавление, публикация, удаление, лайк, деавторизация. В списке и ленте токен необязателен: у гостя
+`is_mine` и `is_liked` равны 0.
 
 ### Домен услуг (кометы)
 
@@ -136,8 +151,11 @@ docs/comets.postman_collection.json  коллекция из 10 запросов
 | Метод и URL | Тело запроса | Ответ |
 |---|---|---|
 | `POST /api/users/register` | JSON: `login` (3–50: латиница, цифры, _), `full_name`, `password` (от 8 символов) | 201, `{"id", "login", "full_name"}`; 409 — логин занят |
-| `POST /api/users/login` | — | 200, заглушка до ЛР4 |
-| `POST /api/users/logout` | — | 200, заглушка до ЛР4 |
+| `POST /api/users/login` | JSON: `login`, `password` | 200, `{"access_token", "token_type": "Bearer", "expires_in"}` — JWT; 401 — неверный логин или пароль |
+| `POST /api/users/logout` | —, нужен токен | 200, токен занесён в чёрный список Redis; 401 — нет токена |
+
+JWT подписывается HS256, в полезной нагрузке — `user_id`, `login`, `iss`, `iat`, `exp`. При каждом запросе с токеном
+middleware проверяет подпись, срок действия и отсутствие токена в чёрном списке.
 
 ## Страницы (ЛР1–ЛР2)
 

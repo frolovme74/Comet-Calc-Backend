@@ -12,7 +12,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/frolovme74/Comet-Calc-Backend/internal/repository"
-	"github.com/frolovme74/Comet-Calc-Backend/internal/session"
 	"github.com/frolovme74/Comet-Calc-Backend/internal/storage"
 )
 
@@ -26,6 +25,16 @@ var (
 	videoTypes = map[string]string{"video/mp4": ".mp4", "video/webm": ".webm"}
 )
 
+// GetComets godoc
+// @Summary      Список комет
+// @Description  Опубликованные кометы с фильтром по периоду обращения. Доступно без авторизации. is_mine = 1, если создатель кометы — текущий пользователь.
+// @Tags         Кометы
+// @Produce      json
+// @Param        min_orbital_period  query     number  false  "Период обращения от, лет"
+// @Param        max_orbital_period  query     number  false  "Период обращения до, лет"
+// @Success      200                 {array}   CometListResponse
+// @Failure      400                 {object}  MessageResponse  "Период не число"
+// @Router       /comets [get]
 func (a *API) GetComets(w http.ResponseWriter, r *http.Request) {
 	var from, to *float64
 	if v, ok := parseNumber(r.URL.Query().Get("min_orbital_period")); ok {
@@ -44,7 +53,7 @@ func (a *API) GetComets(w http.ResponseWriter, r *http.Request) {
 		from, to = to, from
 	}
 
-	cards, err := a.repo.PublishedComets(session.CurrentUser().ID, from, to)
+	cards, err := a.repo.PublishedComets(userOf(r).ID, from, to)
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -56,8 +65,18 @@ func (a *API) GetComets(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// GetCometFeed godoc
+// @Summary      Лента
+// @Description  Одна опубликованная комета: без id — первая, с id — по id, с next=true — следующая после id. Доступно без авторизации. is_liked = 1, если текущий пользователь лайкнул комету.
+// @Tags         Кометы
+// @Produce      json
+// @Param        id    path      int   false  "id кометы; пусто — первая комета ленты"  allowEmptyValue(true)
+// @Param        next  query     bool  false  "true — следующая комета после id"
+// @Success      200   {object}  CometFeedResponse
+// @Failure      404   {object}  MessageResponse  "Комета не найдена"
+// @Router       /comets/feed/{id} [get]
 func (a *API) GetCometFeed(w http.ResponseWriter, r *http.Request) {
-	userID := session.CurrentUser().ID
+	userID := userOf(r).ID
 	idStr := strings.Trim(r.PathValue("id"), "/")
 
 	var (
@@ -85,8 +104,18 @@ func (a *API) GetCometFeed(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, a.cometFeedResponse(card))
 }
 
+// GetCometDraft godoc
+// @Summary      Черновик
+// @Description  Черновик текущего пользователя, id не указывается.
+// @Tags         Кометы
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  CometResponse
+// @Failure      401  {object}  MessageResponse  "Требуется авторизация"
+// @Failure      404  {object}  MessageResponse  "Черновика нет"
+// @Router       /comets/draft [get]
 func (a *API) GetCometDraft(w http.ResponseWriter, r *http.Request) {
-	comet, err := a.repo.DraftComet(session.CurrentUser().ID)
+	comet, err := a.repo.DraftComet(userOf(r).ID)
 	if errors.Is(err, repository.ErrNotFound) {
 		fail(w, http.StatusNotFound, "У пользователя нет черновика")
 		return
@@ -125,6 +154,21 @@ func readUpload(r *http.Request, field string, allowed map[string]string, maxSiz
 	return &uploadedFile{file: file, size: header.Size, contentType: contentType, extension: extension}, nil
 }
 
+// CreateComet godoc
+// @Summary      Добавление кометы
+// @Description  Создаёт черновик, создатель — текущий пользователь из токена. Файлы загружаются в Minio, в БД сохраняются их имена.
+// @Tags         Кометы
+// @Accept       multipart/form-data
+// @Produce      json
+// @Security     BearerAuth
+// @Param        comet_name   formData  string  true  "Название кометы"
+// @Param        comet_photo  formData  file    true  "Изображение: jpeg, png, webp, gif до 10 МБ"
+// @Param        comet_video  formData  file    true  "Видео: mp4, webm до 50 МБ"
+// @Success      201          {object}  CometResponse
+// @Failure      400          {object}  MessageResponse  "Неверные данные"
+// @Failure      401          {object}  MessageResponse  "Требуется авторизация"
+// @Failure      409          {object}  MessageResponse  "Черновик уже есть"
+// @Router       /comets [post]
 func (a *API) CreateComet(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxPhotoSize+maxVideoSize+(1<<20))
 	if err := r.ParseMultipartForm(8 << 20); err != nil {
@@ -161,7 +205,7 @@ func (a *API) CreateComet(w http.ResponseWriter, r *http.Request) {
 	}
 	defer video.file.Close()
 
-	userID := session.CurrentUser().ID
+	userID := userOf(r).ID
 	if _, err := a.repo.DraftComet(userID); err == nil {
 		fail(w, http.StatusConflict, "У пользователя уже есть черновик")
 		return
@@ -192,6 +236,22 @@ func (a *API) CreateComet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, a.cometResponse(comet))
 }
 
+// PublishComet godoc
+// @Summary      Публикация кометы
+// @Description  Переводит свой черновик в статус «опубликован», заполняет описание и поля по теме.
+// @Tags         Кометы
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id     path      int                  true  "id кометы"
+// @Param        comet  body      PublishCometRequest  true  "Описание, период обращения и эксцентриситет"
+// @Success      200    {object}  CometResponse
+// @Failure      400    {object}  MessageResponse  "Неверные данные"
+// @Failure      401    {object}  MessageResponse  "Требуется авторизация"
+// @Failure      403    {object}  MessageResponse  "Комета другого пользователя"
+// @Failure      404    {object}  MessageResponse  "Комета не найдена"
+// @Failure      409    {object}  MessageResponse  "Комета не в статусе черновика"
+// @Router       /comets/{id}/publish [put]
 func (a *API) PublishComet(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(r)
 	if !ok {
@@ -224,7 +284,7 @@ func (a *API) PublishComet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	comet, err := a.repo.PublishComet(id, session.CurrentUser().ID, description, period, eccentricity)
+	comet, err := a.repo.PublishComet(id, userOf(r).ID, description, period, eccentricity)
 	if err != nil {
 		a.repoError(w, err)
 		return
@@ -232,19 +292,45 @@ func (a *API) PublishComet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, a.cometResponse(comet))
 }
 
+// DeleteComet godoc
+// @Summary      Удаление кометы
+// @Description  Логическое удаление: статус меняется на «удалён». Только своя комета.
+// @Tags         Кометы
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      int  true  "id кометы"
+// @Success      200  {object}  DeleteResponse
+// @Failure      401  {object}  MessageResponse  "Требуется авторизация"
+// @Failure      403  {object}  MessageResponse  "Комета другого пользователя"
+// @Failure      404  {object}  MessageResponse  "Комета не найдена"
+// @Router       /comets/{id} [delete]
 func (a *API) DeleteComet(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(r)
 	if !ok {
 		fail(w, http.StatusBadRequest, "id должен быть положительным числом")
 		return
 	}
-	if err := a.repo.SoftDeleteComet(id, session.CurrentUser().ID); err != nil {
+	if err := a.repo.SoftDeleteComet(id, userOf(r).ID); err != nil {
 		a.repoError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, DeleteResponse{ID: id, CometStatus: "deleted"})
 }
 
+// LikeComet godoc
+// @Summary      Лайк
+// @Description  Лайк от текущего пользователя: 1 — поставить, 0 — отменить.
+// @Tags         Кометы
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id    path      int          true  "id кометы"
+// @Param        like  body      LikeRequest  true  "0 или 1"
+// @Success      200   {object}  LikeResponse
+// @Failure      400   {object}  MessageResponse  "like не 0 и не 1"
+// @Failure      401   {object}  MessageResponse  "Требуется авторизация"
+// @Failure      404   {object}  MessageResponse  "Комета не найдена"
+// @Router       /comets/{id}/like [post]
 func (a *API) LikeComet(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(r)
 	if !ok {
@@ -260,7 +346,7 @@ func (a *API) LikeComet(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "like: 1 — поставить лайк, 0 — отменить")
 		return
 	}
-	count, err := a.repo.SetCometLike(session.CurrentUser().ID, id, *req.Like == 1)
+	count, err := a.repo.SetCometLike(userOf(r).ID, id, *req.Like == 1)
 	if err != nil {
 		a.repoError(w, err)
 		return

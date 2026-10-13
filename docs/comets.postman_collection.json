@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "Comet-Calc API (ЛР3)",
-    "description": "Веб-сервис: кометы и расчёт расстояния от Солнца. Текущий пользователь зафиксирован (id = 1).",
+    "name": "Comet-Calc API (ЛР4)",
+    "description": "Веб-сервис: кометы и расчёт расстояния от Солнца. Авторизация по JWT: запрос аутентификации сохраняет токен в переменную token.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -261,11 +261,14 @@
               "language": "json"
             }
           }
+        },
+        "auth": {
+          "type": "noauth"
         }
       }
     },
     {
-      "name": "9. POST аутентификация (заглушка)",
+      "name": "9. POST аутентификация",
       "request": {
         "method": "POST",
         "url": {
@@ -293,11 +296,28 @@
               "language": "json"
             }
           }
+        },
+        "auth": {
+          "type": "noauth"
+        },
+        "description": "Возвращает JWT. Тест-скрипт сохраняет access_token в переменную коллекции token."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    pm.collectionVariables.set('token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
         }
-      }
+      ]
     },
     {
-      "name": "10. POST деавторизация (заглушка)",
+      "name": "10. POST деавторизация",
       "request": {
         "method": "POST",
         "url": {
@@ -310,7 +330,8 @@
             "users",
             "logout"
           ]
-        }
+        },
+        "description": "Заносит текущий токен в чёрный список Redis."
       }
     }
   ],
@@ -322,6 +343,20 @@
     {
       "key": "comet_id",
       "value": "11"
+    },
+    {
+      "key": "token",
+      "value": ""
     }
-  ]
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  }
 }

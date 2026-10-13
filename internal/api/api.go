@@ -11,32 +11,36 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/frolovme74/Comet-Calc-Backend/internal/auth"
+	"github.com/frolovme74/Comet-Calc-Backend/internal/blacklist"
 	"github.com/frolovme74/Comet-Calc-Backend/internal/repository"
 	"github.com/frolovme74/Comet-Calc-Backend/internal/storage"
 )
 
 type API struct {
-	repo    *repository.Repository
-	storage *storage.Storage
+	repo      *repository.Repository
+	storage   *storage.Storage
+	auth      *auth.Manager
+	blacklist *blacklist.Blacklist
 }
 
-func New(repo *repository.Repository, storage *storage.Storage) *API {
-	return &API{repo: repo, storage: storage}
+func New(repo *repository.Repository, storage *storage.Storage, auth *auth.Manager, blacklist *blacklist.Blacklist) *API {
+	return &API{repo: repo, storage: storage, auth: auth, blacklist: blacklist}
 }
 
 func (a *API) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/comets", a.GetComets)
-	mux.HandleFunc("GET /api/comets/feed", a.GetCometFeed)
-	mux.HandleFunc("GET /api/comets/feed/{id...}", a.GetCometFeed)
-	mux.HandleFunc("GET /api/comets/draft", a.GetCometDraft)
-	mux.HandleFunc("POST /api/comets", a.CreateComet)
-	mux.HandleFunc("PUT /api/comets/{id}/publish", a.PublishComet)
-	mux.HandleFunc("DELETE /api/comets/{id}", a.DeleteComet)
-	mux.HandleFunc("POST /api/comets/{id}/like", a.LikeComet)
+	mux.HandleFunc("GET /api/comets", a.withOptionalAuth(a.GetComets))
+	mux.HandleFunc("GET /api/comets/feed", a.withOptionalAuth(a.GetCometFeed))
+	mux.HandleFunc("GET /api/comets/feed/{id...}", a.withOptionalAuth(a.GetCometFeed))
+	mux.HandleFunc("GET /api/comets/draft", a.withAuth(a.GetCometDraft))
+	mux.HandleFunc("POST /api/comets", a.withAuth(a.CreateComet))
+	mux.HandleFunc("PUT /api/comets/{id}/publish", a.withAuth(a.PublishComet))
+	mux.HandleFunc("DELETE /api/comets/{id}", a.withAuth(a.DeleteComet))
+	mux.HandleFunc("POST /api/comets/{id}/like", a.withAuth(a.LikeComet))
 
 	mux.HandleFunc("POST /api/users/register", a.RegisterUser)
 	mux.HandleFunc("POST /api/users/login", a.LoginUser)
-	mux.HandleFunc("POST /api/users/logout", a.LogoutUser)
+	mux.HandleFunc("POST /api/users/logout", a.withAuth(a.LogoutUser))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

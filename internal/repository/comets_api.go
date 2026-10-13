@@ -112,6 +112,12 @@ func (r *Repository) SetCometLike(userID, cometID uint, like bool) (int64, error
 	return count, err
 }
 
+func (r *Repository) UserByLogin(login string) (models.User, error) {
+	var user models.User
+	err := r.db.Where("login = ?", login).Take(&user).Error
+	return user, notFound(err)
+}
+
 func (r *Repository) CreateUser(login, fullName, passwordHash string) (models.User, error) {
 	user := models.User{Login: login, FullName: fullName, PasswordHash: passwordHash}
 	err := r.db.Create(&user).Error

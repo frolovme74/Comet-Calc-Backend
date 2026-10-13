@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"html/template"
 	"log"
 	"math"
@@ -10,14 +11,31 @@ import (
 	"strings"
 
 	"github.com/joho/godotenv"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 
+	_ "github.com/frolovme74/Comet-Calc-Backend/docs"
 	"github.com/frolovme74/Comet-Calc-Backend/internal/api"
+	"github.com/frolovme74/Comet-Calc-Backend/internal/auth"
+	"github.com/frolovme74/Comet-Calc-Backend/internal/blacklist"
 	"github.com/frolovme74/Comet-Calc-Backend/internal/dsn"
 	"github.com/frolovme74/Comet-Calc-Backend/internal/handlers"
 	"github.com/frolovme74/Comet-Calc-Backend/internal/media"
 	"github.com/frolovme74/Comet-Calc-Backend/internal/repository"
 	"github.com/frolovme74/Comet-Calc-Backend/internal/storage"
 )
+
+// @title        Comet-Calc API
+// @version      1.0
+// @description  Веб-сервис «Расстояние кометы от Солнца»: кометы (услуги), лайки, пользователи. Чтение доступно без авторизации, методы создателя — с JWT.
+
+// @host      localhost:8080
+// @schemes   http
+// @BasePath  /api
+
+// @securityDefinitions.apikey  BearerAuth
+// @in                          header
+// @name                        Authorization
+// @description                 Введите: Bearer <access_token из ответа /users/login>
 
 func main() {
 	_ = godotenv.Load()
@@ -30,6 +48,16 @@ func main() {
 	store, err := storage.FromEnv()
 	if err != nil {
 		log.Fatalf("подключение к Minio: %v", err)
+	}
+
+	jwtManager, err := auth.FromEnv()
+	if err != nil {
+		log.Fatalf("настройки JWT: %v", err)
+	}
+
+	tokenBlacklist, err := blacklist.FromEnv(context.Background())
+	if err != nil {
+		log.Fatalf("подключение к Redis: %v", err)
 	}
 
 	checker := media.NewChecker(store.URL)
@@ -70,12 +98,13 @@ func main() {
 	mux.HandleFunc("POST /comets/draft/publish", h.PublishCometDraft)
 	mux.HandleFunc("POST /comets/{id}/delete", h.DeleteComet)
 
-	api.New(repo, store).Register(mux)
+	api.New(repo, store, jwtManager, tokenBlacklist).Register(mux)
+	mux.Handle("GET /swagger/", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
 
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	addr := getenv("ADDR", ":8080")
-	log.Printf("Сервер: http://localhost%s/comets, API: http://localhost%s/api/comets", addr, addr)
+	log.Printf("Сервер: http://localhost%s/comets, API: http://localhost%s/api/comets, Swagger: http://localhost%s/swagger/", addr, addr, addr)
 	log.Fatal(http.ListenAndServe(addr, h.RussianErrors(mux)))
 }
 

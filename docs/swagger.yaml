@@ -1,0 +1,514 @@
+basePath: /api
+definitions:
+  api.CometFeedResponse:
+    properties:
+      comet_description:
+        type: string
+      comet_name:
+        type: string
+      comet_photo:
+        type: string
+      comet_photo_url:
+        type: string
+      comet_status:
+        type: string
+      comet_video:
+        type: string
+      comet_video_url:
+        type: string
+      created_at:
+        type: string
+      formed_at:
+        type: string
+      id:
+        type: integer
+      is_liked:
+        type: integer
+      likes_count:
+        type: integer
+      orbit_eccentricity:
+        type: number
+      orbital_period:
+        type: number
+    type: object
+  api.CometListResponse:
+    properties:
+      comet_description:
+        type: string
+      comet_name:
+        type: string
+      comet_photo:
+        type: string
+      comet_photo_url:
+        type: string
+      comet_status:
+        type: string
+      comet_video:
+        type: string
+      comet_video_url:
+        type: string
+      created_at:
+        type: string
+      formed_at:
+        type: string
+      id:
+        type: integer
+      is_mine:
+        type: integer
+      likes_count:
+        type: integer
+      orbit_eccentricity:
+        type: number
+      orbital_period:
+        type: number
+    type: object
+  api.CometResponse:
+    properties:
+      comet_description:
+        type: string
+      comet_name:
+        type: string
+      comet_photo:
+        type: string
+      comet_photo_url:
+        type: string
+      comet_status:
+        type: string
+      comet_video:
+        type: string
+      comet_video_url:
+        type: string
+      created_at:
+        type: string
+      formed_at:
+        type: string
+      id:
+        type: integer
+      orbit_eccentricity:
+        type: number
+      orbital_period:
+        type: number
+    type: object
+  api.DeleteResponse:
+    properties:
+      comet_status:
+        type: string
+      id:
+        type: integer
+    type: object
+  api.LikeRequest:
+    properties:
+      like:
+        type: integer
+    type: object
+  api.LikeResponse:
+    properties:
+      comet_id:
+        type: integer
+      like:
+        type: integer
+      likes_count:
+        type: integer
+    type: object
+  api.LoginRequest:
+    properties:
+      login:
+        example: frolov
+        type: string
+      password:
+        example: comets2026
+        type: string
+    type: object
+  api.LoginResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        example: 3600
+        type: integer
+      token_type:
+        example: Bearer
+        type: string
+    type: object
+  api.MessageResponse:
+    properties:
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+  api.PublishCometRequest:
+    properties:
+      comet_description:
+        type: string
+      orbit_eccentricity:
+        type: number
+      orbital_period:
+        type: number
+    type: object
+  api.RegisterRequest:
+    properties:
+      full_name:
+        type: string
+      login:
+        type: string
+      password:
+        type: string
+    type: object
+  api.UserResponse:
+    properties:
+      full_name:
+        type: string
+      id:
+        type: integer
+      login:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: 'Веб-сервис «Расстояние кометы от Солнца»: кометы (услуги), лайки,
+    пользователи. Чтение доступно без авторизации, методы создателя — с JWT.'
+  title: Comet-Calc API
+  version: "1.0"
+paths:
+  /comets:
+    get:
+      description: Опубликованные кометы с фильтром по периоду обращения. Доступно
+        без авторизации. is_mine = 1, если создатель кометы — текущий пользователь.
+      parameters:
+      - description: Период обращения от, лет
+        in: query
+        name: min_orbital_period
+        type: number
+      - description: Период обращения до, лет
+        in: query
+        name: max_orbital_period
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.CometListResponse'
+            type: array
+        "400":
+          description: Период не число
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+      summary: Список комет
+      tags:
+      - Кометы
+    post:
+      consumes:
+      - multipart/form-data
+      description: Создаёт черновик, создатель — текущий пользователь из токена. Файлы
+        загружаются в Minio, в БД сохраняются их имена.
+      parameters:
+      - description: Название кометы
+        in: formData
+        name: comet_name
+        required: true
+        type: string
+      - description: 'Изображение: jpeg, png, webp, gif до 10 МБ'
+        in: formData
+        name: comet_photo
+        required: true
+        type: file
+      - description: 'Видео: mp4, webm до 50 МБ'
+        in: formData
+        name: comet_video
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/api.CometResponse'
+        "400":
+          description: Неверные данные
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "401":
+          description: Требуется авторизация
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "409":
+          description: Черновик уже есть
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+      security:
+      - BearerAuth: []
+      summary: Добавление кометы
+      tags:
+      - Кометы
+  /comets/{id}:
+    delete:
+      description: 'Логическое удаление: статус меняется на «удалён». Только своя
+        комета.'
+      parameters:
+      - description: id кометы
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.DeleteResponse'
+        "401":
+          description: Требуется авторизация
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "403":
+          description: Комета другого пользователя
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "404":
+          description: Комета не найдена
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+      security:
+      - BearerAuth: []
+      summary: Удаление кометы
+      tags:
+      - Кометы
+  /comets/{id}/like:
+    post:
+      consumes:
+      - application/json
+      description: 'Лайк от текущего пользователя: 1 — поставить, 0 — отменить.'
+      parameters:
+      - description: id кометы
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 0 или 1
+        in: body
+        name: like
+        required: true
+        schema:
+          $ref: '#/definitions/api.LikeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.LikeResponse'
+        "400":
+          description: like не 0 и не 1
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "401":
+          description: Требуется авторизация
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "404":
+          description: Комета не найдена
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+      security:
+      - BearerAuth: []
+      summary: Лайк
+      tags:
+      - Кометы
+  /comets/{id}/publish:
+    put:
+      consumes:
+      - application/json
+      description: Переводит свой черновик в статус «опубликован», заполняет описание
+        и поля по теме.
+      parameters:
+      - description: id кометы
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Описание, период обращения и эксцентриситет
+        in: body
+        name: comet
+        required: true
+        schema:
+          $ref: '#/definitions/api.PublishCometRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.CometResponse'
+        "400":
+          description: Неверные данные
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "401":
+          description: Требуется авторизация
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "403":
+          description: Комета другого пользователя
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "404":
+          description: Комета не найдена
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "409":
+          description: Комета не в статусе черновика
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+      security:
+      - BearerAuth: []
+      summary: Публикация кометы
+      tags:
+      - Кометы
+  /comets/draft:
+    get:
+      description: Черновик текущего пользователя, id не указывается.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.CometResponse'
+        "401":
+          description: Требуется авторизация
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "404":
+          description: Черновика нет
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+      security:
+      - BearerAuth: []
+      summary: Черновик
+      tags:
+      - Кометы
+  /comets/feed/{id}:
+    get:
+      description: 'Одна опубликованная комета: без id — первая, с id — по id, с next=true
+        — следующая после id. Доступно без авторизации. is_liked = 1, если текущий
+        пользователь лайкнул комету.'
+      parameters:
+      - description: id кометы; пусто — первая комета ленты
+        in: path
+        name: id
+        type: integer
+      - description: true — следующая комета после id
+        in: query
+        name: next
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.CometFeedResponse'
+        "404":
+          description: Комета не найдена
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+      summary: Лента
+      tags:
+      - Кометы
+  /users/login:
+    post:
+      consumes:
+      - application/json
+      description: 'Проверяет логин и пароль и выдаёт JWT. Токен передаётся в заголовке
+        Authorization: Bearer <токен>.'
+      parameters:
+      - description: Логин и пароль
+        in: body
+        name: credentials
+        required: true
+        schema:
+          $ref: '#/definitions/api.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.LoginResponse'
+        "400":
+          description: Некорректный JSON
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "401":
+          description: Неверный логин или пароль
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+      summary: Аутентификация
+      tags:
+      - Пользователи
+  /users/logout:
+    post:
+      description: Заносит текущий JWT в чёрный список Redis до истечения срока его
+        действия.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "401":
+          description: Нет токена или токен недействителен
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+      security:
+      - BearerAuth: []
+      summary: Деавторизация
+      tags:
+      - Пользователи
+  /users/register:
+    post:
+      consumes:
+      - application/json
+      description: Создаёт пользователя. Пароль хранится в виде bcrypt-хеша.
+      parameters:
+      - description: Данные пользователя
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/api.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/api.UserResponse'
+        "400":
+          description: Неверные данные
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "409":
+          description: Логин уже занят
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+      summary: Регистрация
+      tags:
+      - Пользователи
+schemes:
+- http
+securityDefinitions:
+  BearerAuth:
+    description: 'Введите: Bearer <access_token из ответа /users/login>'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

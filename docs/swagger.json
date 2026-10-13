@@ -1,0 +1,778 @@
+{
+    "schemes": [
+        "http"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "Веб-сервис «Расстояние кометы от Солнца»: кометы (услуги), лайки, пользователи. Чтение доступно без авторизации, методы создателя — с JWT.",
+        "title": "Comet-Calc API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/api",
+    "paths": {
+        "/comets": {
+            "get": {
+                "description": "Опубликованные кометы с фильтром по периоду обращения. Доступно без авторизации. is_mine = 1, если создатель кометы — текущий пользователь.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Кометы"
+                ],
+                "summary": "Список комет",
+                "parameters": [
+                    {
+                        "type": "number",
+                        "description": "Период обращения от, лет",
+                        "name": "min_orbital_period",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Период обращения до, лет",
+                        "name": "max_orbital_period",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.CometListResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Период не число",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Создаёт черновик, создатель — текущий пользователь из токена. Файлы загружаются в Minio, в БД сохраняются их имена.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Кометы"
+                ],
+                "summary": "Добавление кометы",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Название кометы",
+                        "name": "comet_name",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Изображение: jpeg, png, webp, gif до 10 МБ",
+                        "name": "comet_photo",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Видео: mp4, webm до 50 МБ",
+                        "name": "comet_video",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/api.CometResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Неверные данные",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Требуется авторизация",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Черновик уже есть",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/comets/draft": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Черновик текущего пользователя, id не указывается.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Кометы"
+                ],
+                "summary": "Черновик",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.CometResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Требуется авторизация",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Черновика нет",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/comets/feed/{id}": {
+            "get": {
+                "description": "Одна опубликованная комета: без id — первая, с id — по id, с next=true — следующая после id. Доступно без авторизации. is_liked = 1, если текущий пользователь лайкнул комету.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Кометы"
+                ],
+                "summary": "Лента",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "id кометы; пусто — первая комета ленты",
+                        "name": "id",
+                        "in": "path"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "true — следующая комета после id",
+                        "name": "next",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.CometFeedResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Комета не найдена",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/comets/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Логическое удаление: статус меняется на «удалён». Только своя комета.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Кометы"
+                ],
+                "summary": "Удаление кометы",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "id кометы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.DeleteResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Требуется авторизация",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Комета другого пользователя",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Комета не найдена",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/comets/{id}/like": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Лайк от текущего пользователя: 1 — поставить, 0 — отменить.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Кометы"
+                ],
+                "summary": "Лайк",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "id кометы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "0 или 1",
+                        "name": "like",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.LikeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.LikeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "like не 0 и не 1",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Требуется авторизация",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Комета не найдена",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/comets/{id}/publish": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Переводит свой черновик в статус «опубликован», заполняет описание и поля по теме.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Кометы"
+                ],
+                "summary": "Публикация кометы",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "id кометы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Описание, период обращения и эксцентриситет",
+                        "name": "comet",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.PublishCometRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.CometResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Неверные данные",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Требуется авторизация",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Комета другого пользователя",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Комета не найдена",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Комета не в статусе черновика",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/login": {
+            "post": {
+                "description": "Проверяет логин и пароль и выдаёт JWT. Токен передаётся в заголовке Authorization: Bearer \u003cтокен\u003e.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Пользователи"
+                ],
+                "summary": "Аутентификация",
+                "parameters": [
+                    {
+                        "description": "Логин и пароль",
+                        "name": "credentials",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.LoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Некорректный JSON",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Неверный логин или пароль",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/logout": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Заносит текущий JWT в чёрный список Redis до истечения срока его действия.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Пользователи"
+                ],
+                "summary": "Деавторизация",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Нет токена или токен недействителен",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/register": {
+            "post": {
+                "description": "Создаёт пользователя. Пароль хранится в виде bcrypt-хеша.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Пользователи"
+                ],
+                "summary": "Регистрация",
+                "parameters": [
+                    {
+                        "description": "Данные пользователя",
+                        "name": "user",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.RegisterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/api.UserResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Неверные данные",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Логин уже занят",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "api.CometFeedResponse": {
+            "type": "object",
+            "properties": {
+                "comet_description": {
+                    "type": "string"
+                },
+                "comet_name": {
+                    "type": "string"
+                },
+                "comet_photo": {
+                    "type": "string"
+                },
+                "comet_photo_url": {
+                    "type": "string"
+                },
+                "comet_status": {
+                    "type": "string"
+                },
+                "comet_video": {
+                    "type": "string"
+                },
+                "comet_video_url": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "formed_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_liked": {
+                    "type": "integer"
+                },
+                "likes_count": {
+                    "type": "integer"
+                },
+                "orbit_eccentricity": {
+                    "type": "number"
+                },
+                "orbital_period": {
+                    "type": "number"
+                }
+            }
+        },
+        "api.CometListResponse": {
+            "type": "object",
+            "properties": {
+                "comet_description": {
+                    "type": "string"
+                },
+                "comet_name": {
+                    "type": "string"
+                },
+                "comet_photo": {
+                    "type": "string"
+                },
+                "comet_photo_url": {
+                    "type": "string"
+                },
+                "comet_status": {
+                    "type": "string"
+                },
+                "comet_video": {
+                    "type": "string"
+                },
+                "comet_video_url": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "formed_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_mine": {
+                    "type": "integer"
+                },
+                "likes_count": {
+                    "type": "integer"
+                },
+                "orbit_eccentricity": {
+                    "type": "number"
+                },
+                "orbital_period": {
+                    "type": "number"
+                }
+            }
+        },
+        "api.CometResponse": {
+            "type": "object",
+            "properties": {
+                "comet_description": {
+                    "type": "string"
+                },
+                "comet_name": {
+                    "type": "string"
+                },
+                "comet_photo": {
+                    "type": "string"
+                },
+                "comet_photo_url": {
+                    "type": "string"
+                },
+                "comet_status": {
+                    "type": "string"
+                },
+                "comet_video": {
+                    "type": "string"
+                },
+                "comet_video_url": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "formed_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "orbit_eccentricity": {
+                    "type": "number"
+                },
+                "orbital_period": {
+                    "type": "number"
+                }
+            }
+        },
+        "api.DeleteResponse": {
+            "type": "object",
+            "properties": {
+                "comet_status": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.LikeRequest": {
+            "type": "object",
+            "properties": {
+                "like": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.LikeResponse": {
+            "type": "object",
+            "properties": {
+                "comet_id": {
+                    "type": "integer"
+                },
+                "like": {
+                    "type": "integer"
+                },
+                "likes_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.LoginRequest": {
+            "type": "object",
+            "properties": {
+                "login": {
+                    "type": "string",
+                    "example": "frolov"
+                },
+                "password": {
+                    "type": "string",
+                    "example": "comets2026"
+                }
+            }
+        },
+        "api.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer",
+                    "example": 3600
+                },
+                "token_type": {
+                    "type": "string",
+                    "example": "Bearer"
+                }
+            }
+        },
+        "api.MessageResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.PublishCometRequest": {
+            "type": "object",
+            "properties": {
+                "comet_description": {
+                    "type": "string"
+                },
+                "orbit_eccentricity": {
+                    "type": "number"
+                },
+                "orbital_period": {
+                    "type": "number"
+                }
+            }
+        },
+        "api.RegisterRequest": {
+            "type": "object",
+            "properties": {
+                "full_name": {
+                    "type": "string"
+                },
+                "login": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.UserResponse": {
+            "type": "object",
+            "properties": {
+                "full_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "login": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Введите: Bearer \u003caccess_token из ответа /users/login\u003e",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}
