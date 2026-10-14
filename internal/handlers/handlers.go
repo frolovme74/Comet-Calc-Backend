@@ -65,7 +65,7 @@ func (h *CometHandler) CometFeed(w http.ResponseWriter, r *http.Request) {
 	} else {
 		id, convErr := strconv.ParseUint(idStr, 10, 63)
 		if convErr != nil {
-			h.NotFound(w, r)
+			redirectToFeed(w, r)
 			return
 		}
 		if r.URL.Query().Get("next") == "true" {
@@ -75,11 +75,11 @@ func (h *CometHandler) CometFeed(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if errors.Is(err, repository.ErrNotFound) && idStr != "" {
-		http.Redirect(w, r, "/comets/feed", http.StatusSeeOther)
+		redirectToFeed(w, r)
 		return
 	}
 	if errors.Is(err, repository.ErrNotFound) {
-		h.NotFound(w, r)
+		http.Redirect(w, r, "/comets", http.StatusSeeOther)
 		return
 	}
 	if err != nil {
@@ -229,7 +229,7 @@ func (h *CometHandler) CometList(w http.ResponseWriter, r *http.Request) {
 func (h *CometHandler) DeleteComet(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(r.PathValue("id"), 10, 63)
 	if err != nil {
-		h.NotFound(w, r)
+		redirectToFeed(w, r)
 		return
 	}
 	err = h.repo.DeleteComet(r.Context(), uint(id))
@@ -250,50 +250,41 @@ func (h *CometHandler) DeleteComet(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
-func (h *CometHandler) NotFound(w http.ResponseWriter, r *http.Request) {
-	h.render(w, http.StatusNotFound, "error.html", map[string]any{
-		"Tab":   "",
-		"Title": "Страница не найдена",
-		"Text":  "Такой кометы нет или она удалена.",
-	})
+func redirectToFeed(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/comets/feed", http.StatusSeeOther)
 }
 
 type russianErrors struct {
 	http.ResponseWriter
-	h        *CometHandler
 	api      bool
 	replaced bool
 }
 
 func (rw *russianErrors) WriteHeader(code int) {
 	plain := strings.HasPrefix(rw.Header().Get("Content-Type"), "text/plain")
-	if plain && (code == http.StatusNotFound || code == http.StatusMethodNotAllowed) {
-		rw.replaced = true
-		rw.Header().Del("Content-Length")
-		rw.Header().Del("X-Content-Type-Options")
-		title, text := "Страница не найдена", "Такой страницы нет."
-		if rw.api {
-			title = "Метод API не найден"
-		}
-		if code == http.StatusMethodNotAllowed {
-			title, text = "Метод не поддерживается", "Этот адрес не принимает такой запрос."
-			if rw.api {
-				title = "HTTP-метод не поддерживается для этого адреса"
-			}
-		}
-		if rw.api {
-			rw.Header().Set("Content-Type", "application/json; charset=utf-8")
-			rw.ResponseWriter.WriteHeader(code)
-			_ = json.NewEncoder(rw.ResponseWriter).Encode(struct {
-				Status  string `json:"status"`
-				Message string `json:"message"`
-			}{"fail", title})
-			return
-		}
-		rw.h.render(rw.ResponseWriter, code, "error.html", map[string]any{"Tab": "", "Title": title, "Text": text})
+	if !plain || (code != http.StatusNotFound && code != http.StatusMethodNotAllowed) {
+		rw.ResponseWriter.WriteHeader(code)
 		return
 	}
+	rw.replaced = true
+	rw.Header().Del("Content-Length")
+	rw.Header().Del("X-Content-Type-Options")
+	if !rw.api {
+		rw.Header().Del("Content-Type")
+		rw.Header().Set("Location", "/comets/feed")
+		rw.ResponseWriter.WriteHeader(http.StatusSeeOther)
+		return
+	}
+	message := "Метод API не найден"
+	if code == http.StatusMethodNotAllowed {
+		message = "HTTP-метод не поддерживается для этого адреса"
+	}
+	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 	rw.ResponseWriter.WriteHeader(code)
+	_ = json.NewEncoder(rw.ResponseWriter).Encode(struct {
+		Status  string `json:"status"`
+		Message string `json:"message"`
+	}{"fail", message})
 }
 
 func (rw *russianErrors) Write(b []byte) (int, error) {
@@ -305,6 +296,6 @@ func (rw *russianErrors) Write(b []byte) (int, error) {
 
 func (h *CometHandler) RussianErrors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(&russianErrors{ResponseWriter: w, h: h, api: strings.HasPrefix(r.URL.Path, "/api/")}, r)
+		next.ServeHTTP(&russianErrors{ResponseWriter: w, api: strings.HasPrefix(r.URL.Path, "/api/")}, r)
 	})
 }
