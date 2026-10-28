@@ -164,7 +164,6 @@ definitions:
       login:
         type: string
     type: object
-host: localhost:8080
 info:
   contact: {}
   description: 'Веб-сервис «Расстояние кометы от Солнца»: кометы (услуги), лайки,
